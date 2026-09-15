@@ -158,6 +158,10 @@ h1 span,
   transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
 }
 
+.link-card[hidden] {
+  display: none;
+}
+
 .link-card::after {
   position: absolute;
   inset: 0 auto 0 0;
@@ -378,6 +382,10 @@ footer {
   }
 
   .section-heading {
+    grid-column: 1 / -1;
+  }
+
+  .link-card--featured {
     grid-column: 1 / -1;
   }
 
