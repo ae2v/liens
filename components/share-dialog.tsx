@@ -6,7 +6,9 @@ import { SiBluesky, SiPinterest, SiReddit, SiTelegram, SiThreads, SiWhatsapp, Si
 import Image from "next/image";
 import type { ElementType } from "react";
 
-export function ShareDialog({ title }: { title: string }) {
+const title = "AE2V — BDE de Vélizy";
+
+export function ShareDialog() {
   const dialog = useRef<HTMLDialogElement>(null);
   const [url, setUrl] = useState("https://liens.ae2v.fr");
   const [copied, setCopied] = useState(false);
@@ -46,9 +48,8 @@ export function ShareDialog({ title }: { title: string }) {
       <div className="share-sheet">
         <header><h2>Partager la page</h2><button aria-label="Fermer" onClick={() => dialog.current?.close()}><X /></button></header>
         <div className="share-card">
-          <div className="share-logo"><Image src="/assets/logo-ae2v.svg" alt="" width={56} height={16} /></div>
-          <strong>{title}</strong><span>liens.ae2v.fr</span>
-          <Image unoptimized className="share-qr" width={96} height={96} src={`/api/qr?data=${encoded}&format=svg`} alt="Code QR vers cette page" />
+          <div className="share-card-copy"><strong>{title}</strong><span>Always further, together</span><small>liens.ae2v.fr</small></div>
+          <Image unoptimized className="share-qr" width={156} height={156} src={`/api/qr?data=${encoded}&format=svg`} alt="Code QR vers cette page" />
         </div>
         <div className="share-options" aria-label="Options de partage">
           <button onClick={copy}>{copied ? <Check /> : <Copy />}<span>{copied ? "Copié" : "Copier"}</span></button>

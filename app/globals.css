@@ -94,12 +94,12 @@ a { color: inherit; }
 .share-sheet > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .share-sheet h2 { margin: 0; font-size: 1.2rem; letter-spacing: -.025em; }
 .share-sheet header button { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--paper); cursor: pointer; }
-.share-card { position: relative; display: grid; justify-items: center; padding: 26px 120px 26px 26px; border-radius: 18px; color: #fff; background: var(--red-dark); text-align: center; }
-.share-logo { width: 70px; height: 70px; display: grid; place-items: center; margin-bottom: 13px; border-radius: 50%; background: #fff; }
-.share-logo img { width: 56px; }
-.share-card strong { font-size: 1.15rem; }
-.share-card span { margin-top: 4px; font-size: .82rem; opacity: .75; }
-.share-qr { position: absolute; top: 50%; right: 23px; width: 96px; height: 96px; border-radius: 8px; transform: translateY(-50%); }
+.share-card { display: grid; grid-template-columns: minmax(0,1fr) 156px; align-items: center; gap: 22px; padding: 24px; border-radius: 18px; color: #fff; background: var(--red-dark); }
+.share-card-copy { min-width: 0; display: grid; text-align: left; }
+.share-card strong { font-size: 1.25rem; line-height: 1.15; letter-spacing: -.025em; }
+.share-card span { margin-top: 7px; font-size: .82rem; opacity: .9; }
+.share-card small { margin-top: 16px; font-size: .72rem; opacity: .65; }
+.share-qr { width: 156px; height: 156px; border-radius: 10px; }
 .share-options { display: grid; grid-auto-flow: column; grid-auto-columns: 72px; gap: 5px; margin: 22px -4px 0; padding: 4px; overflow-x: auto; }
 .share-options a, .share-options button { display: grid; justify-items: center; gap: 8px; padding: 0; border: 0; color: inherit; background: none; text-decoration: none; cursor: pointer; }
 .share-options svg { width: 46px; height: 46px; padding: 12px; border-radius: 50%; background: var(--paper); }
@@ -277,8 +277,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
   .brand-rail { display: none; }
   .profile-logo { width: 94px; height: 94px; margin-top: 5px; }
   .public-links::before { display: none; }
-  .share-card { padding: 24px 24px 138px; }
-  .share-qr { top: auto; right: 50%; bottom: 22px; width: 96px; height: 96px; transform: translateX(50%); }
+  .share-card { grid-template-columns: minmax(0,1fr) 132px; gap: 14px; padding: 18px; }
+  .share-card strong { font-size: 1.06rem; }
+  .share-card small { margin-top: 12px; }
+  .share-qr { width: 132px; height: 132px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

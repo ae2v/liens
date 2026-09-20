@@ -16,10 +16,10 @@ export default async function Home() {
 
   return <main className="public-page">
     <section className="profile-card">
-      <header className="profile-actions"><a className="round-button" href="https://ae2v.fr" aria-label="Site officiel"><Globe2 size={20} /></a><ShareDialog title={settings.displayName} /></header>
+      <header className="profile-actions"><a className="round-button" href="https://ae2v.fr" aria-label="Site officiel"><Globe2 size={20} /></a><ShareDialog /></header>
       <div className="profile-logo" style={{ backgroundImage: `url(${settings.logoPath})` }} role="img" aria-label="Logo AE2V" />
       <h1>{settings.displayName}</h1>
-      <p>{settings.bio}</p>
+      <p>Always further, together</p>
       <nav className="social-row" aria-label="Réseaux sociaux">
         <a href="https://www.instagram.com/bde.velizy/" aria-label="Instagram"><Instagram /></a>
         <a href="https://www.facebook.com/Ae2velizy" aria-label="Facebook"><Facebook /></a>

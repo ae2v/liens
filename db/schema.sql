@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS site_settings (
   id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   display_name TEXT NOT NULL DEFAULT 'AE2V — BDE de Vélizy',
-  bio TEXT NOT NULL DEFAULT 'Tous les liens utiles de ton BDE, au même endroit.',
+  bio TEXT NOT NULL DEFAULT 'Always further, together',
   logo_path TEXT NOT NULL DEFAULT '/assets/logo-ae2v.svg',
   discord_invite TEXT,
   discord_connected BOOLEAN NOT NULL DEFAULT FALSE,
