@@ -95,6 +95,12 @@ export async function getAdminData() {
   };
 }
 
+export async function getSettings() {
+  const sql = sqlClient();
+  const rows = await sql`SELECT * FROM site_settings WHERE id = 1`;
+  return mapSettings(rows[0]);
+}
+
 export async function getShortLink(slug: string) {
   const sql = sqlClient();
   const rows = await sql`SELECT s.*, COUNT(c.id)::int AS clicks, COUNT(c.id) FILTER (WHERE c.occurred_at >= NOW() - INTERVAL '7 days')::int AS clicks_this_week, MAX(c.occurred_at) AS last_click_at FROM short_links s LEFT JOIN click_events c ON c.short_link_id = s.id WHERE LOWER(s.slug) = LOWER(${slug}) GROUP BY s.id`;
@@ -102,17 +108,49 @@ export async function getShortLink(slug: string) {
 }
 
 export async function recordShortClick(linkId: string, request: Request) {
+  if (isBot(request)) return;
   const sql = sqlClient();
   const ua = request.headers.get("user-agent") ?? "";
-  const device = /mobile|android|iphone/i.test(ua) ? "mobile" : /tablet|ipad/i.test(ua) ? "tablet" : "desktop";
+  const device = /tablet|ipad/i.test(ua) ? "tablet" : /mobile|android|iphone/i.test(ua) ? "mobile" : "desktop";
   await sql`INSERT INTO click_events (short_link_id, referrer, country, device) VALUES (${linkId}, ${request.headers.get("referer")}, ${request.headers.get("x-vercel-ip-country")}, ${device})`;
 }
 
 export async function recordItemClick(itemId: string, request: Request) {
+  if (isBot(request)) return;
   const sql = sqlClient();
   const ua = request.headers.get("user-agent") ?? "";
-  const device = /mobile|android|iphone/i.test(ua) ? "mobile" : /tablet|ipad/i.test(ua) ? "tablet" : "desktop";
+  const device = /tablet|ipad/i.test(ua) ? "tablet" : /mobile|android|iphone/i.test(ua) ? "mobile" : "desktop";
   await sql`INSERT INTO click_events (page_item_id, referrer, country, device) VALUES (${itemId}, ${request.headers.get("referer")}, ${request.headers.get("x-vercel-ip-country")}, ${device})`;
 }
 
 export { sqlClient };
+
+function isBot(request: Request) {
+  return /bot|crawler|spider|facebookexternalhit|preview/i.test(request.headers.get("user-agent") ?? "") || request.headers.get("purpose") === "prefetch";
+}
+
+export async function getAnalytics(kind: "item" | "short", id: string, days: number) {
+  const sql = sqlClient();
+  const column = kind === "item" ? "page_item_id" : "short_link_id";
+  const rows = await sql.query(`SELECT (occurred_at AT TIME ZONE 'Europe/Paris')::date::text AS day,
+    COALESCE(device, 'unknown') AS device, COALESCE(country, 'Inconnu') AS country,
+    COALESCE(NULLIF(substring(referrer from '^https?://([^/]+)'), ''), 'Direct / inconnu') AS referrer,
+    COUNT(*)::int AS clicks FROM click_events WHERE ${column} = $1
+    AND occurred_at >= (((NOW() AT TIME ZONE 'Europe/Paris')::date - ($2::int - 1))::timestamp AT TIME ZONE 'Europe/Paris')
+    GROUP BY 1, 2, 3, 4 ORDER BY 1`, [id, days]);
+  const totals = await sql.query(`SELECT COUNT(*)::int AS total, MAX(occurred_at) AS last FROM click_events WHERE ${column} = $1`, [id]);
+  const sum = (key: string) => {
+    const result = new Map<string, number>();
+    for (const row of rows) result.set(String(row[key]), (result.get(String(row[key])) ?? 0) + Number(row.clicks));
+    return [...result].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  };
+  const daily = new Map(sum("day").map((row) => [row.label, row.value]));
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const timeline = Array.from({ length: days }, (_, index) => {
+    const date = new Date(`${today}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - days + index + 1);
+    const label = date.toISOString().slice(0, 10);
+    return { label, value: daily.get(label) ?? 0 };
+  });
+  return { total: Number(totals[0].total), period: timeline.reduce((total, point) => total + point.value, 0), lastClickAt: totals[0].last,
+    timeline, devices: sum("device"), countries: sum("country"), referrers: sum("referrer") };
+}

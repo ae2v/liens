@@ -3,5 +3,6 @@
 .next
 node_modules
 .playwright-cli
+output/
 .dev.*.log
 *.tsbuildinfo

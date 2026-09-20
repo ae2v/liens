@@ -10,12 +10,13 @@ export async function GET(request: NextRequest) {
   const dark = request.nextUrl.searchParams.get("dark") ?? "#171717";
   const light = request.nextUrl.searchParams.get("light") ?? "#ffffff";
   if (data.length > 2048) return NextResponse.json({ error: "Lien trop long" }, { status: 400 });
-  const options = { errorCorrectionLevel: "H" as const, margin: 2, width: 1024, color: { dark, light } };
+  if (!/^#[0-9a-f]{6}$/i.test(dark) || !/^#[0-9a-f]{6}$/i.test(light)) return NextResponse.json({ error: "Couleur invalide" }, { status: 400 });
+  const options = { errorCorrectionLevel: "H" as const, margin: 4, width: 1024, color: { dark, light } };
   const qr = await QRCode.toString(data, { ...options, type: "svg" });
   const logo = await readFile(join(process.cwd(), "public", "assets", "logo-ae2v.svg"));
   const qrData = Buffer.from(qr).toString("base64");
   const logoData = logo.toString("base64");
-  const composed = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><image width="1024" height="1024" href="data:image/svg+xml;base64,${qrData}"/><circle cx="512" cy="512" r="104" fill="#fff"/><svg x="432" y="448" width="160" height="128" viewBox="650 0 350 272.35"><image width="1000" height="272.35" href="data:image/svg+xml;base64,${logoData}"/></svg></svg>`;
+  const composed = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><image width="1024" height="1024" href="data:image/svg+xml;base64,${qrData}"/><rect x="412" y="428" width="200" height="168" rx="12" fill="#fff"/><svg x="418" y="438" width="188" height="148" viewBox="650 0 350 272.35"><image width="1000" height="272.35" href="data:image/svg+xml;base64,${logoData}"/></svg></svg>`;
   if (format === "png") {
     const buffer = await sharp(Buffer.from(composed)).png().toBuffer();
     return new NextResponse(new Uint8Array(buffer), { headers: { "Content-Type": "image/png", "Content-Disposition": "attachment; filename=ae2v-qr.png" } });

@@ -20,6 +20,8 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
   if (botPattern.test(userAgent)) {
     return new NextResponse(html(link.title, link.description || "Un lien partagé par l’AE2V.", link.imageUrl ?? `${new URL(request.url).origin}/opengraph-image`, request.url), { headers: { "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" } });
   }
-  await recordShortClick(link.id, request);
-  return NextResponse.redirect(link.destination, 307);
+  if (request.method === 'GET') await recordShortClick(link.id, request);
+  const response = NextResponse.redirect(link.destination, 307);
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
 }

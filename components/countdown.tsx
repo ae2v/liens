@@ -1,31 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-function remaining(target: string) {
-  const diff = Math.max(0, new Date(target).getTime() - Date.now());
-  const days = Math.floor(diff / 86_400_000);
-  const hours = Math.floor((diff / 3_600_000) % 24);
-  const minutes = Math.floor((diff / 60_000) % 60);
-  const seconds = Math.floor((diff / 1000) % 60);
-  return { days, hours, minutes, seconds, ended: diff === 0 };
-}
+import { countdownUnits } from "@/lib/countdown";
 
 export function Countdown({ target }: { target: string }) {
-  const [time, setTime] = useState(() => remaining(target));
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTime(remaining(target)), 1000);
-    return () => window.clearInterval(timer);
+    const tick = () => setNow(Date.now());
+    const start = window.setTimeout(tick, 0);
+    const timer = window.setInterval(tick, 1000);
+    return () => { clearTimeout(start); clearInterval(timer); };
   }, [target]);
 
-  if (time.ended) return <span className="countdown-ended">C’est maintenant</span>;
+  const units = now === null ? null : countdownUnits(target, now);
+  if (units?.length === 0) return <span className="countdown-ended">C’est maintenant</span>;
   return (
-    <span className="countdown" aria-label={`${time.days} jours, ${time.hours} heures, ${time.minutes} minutes`}>
-      <b>{time.days}<small>j</small></b>
-      <b>{String(time.hours).padStart(2, "0")}<small>h</small></b>
-      <b>{String(time.minutes).padStart(2, "0")}<small>m</small></b>
-      <b>{String(time.seconds).padStart(2, "0")}<small>s</small></b>
+    <span className="countdown" aria-label={units ? units.map((u) => `${u.value} ${u.label}`).join(', ') : 'Chargement du décompte'}>
+      {(units ?? [{ value: null, label: '…' }, { value: null, label: '…' }]).map((unit, index) => <span className="countdown-unit" key={index}><b>{unit.value === null ? '—' : String(unit.value).padStart(2, '0')}</b><small>{unit.label}</small></span>)}
     </span>
   );
 }
