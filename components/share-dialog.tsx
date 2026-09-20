@@ -1,21 +1,32 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Copy, Facebook, Linkedin, Mail, MessageCircle, MoreHorizontal, Share2, X } from "lucide-react";
+import { Check, Copy, Facebook, Linkedin, Mail, MessageSquareText, MoreHorizontal, Share2, X } from "lucide-react";
+import { SiBluesky, SiPinterest, SiReddit, SiTelegram, SiThreads, SiWhatsapp, SiX } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
+import type { ElementType } from "react";
 
 export function ShareDialog({ title }: { title: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [url, setUrl] = useState("https://liens.ae2v.fr");
   const [copied, setCopied] = useState(false);
 
+  const shareText = `Retrouve tous les liens de ${title}`;
   const encoded = encodeURIComponent(url);
-  const message = encodeURIComponent(`Retrouve tous les liens de ${title}`);
-  const networks = [
-    { label: "WhatsApp", href: `https://wa.me/?text=${message}%20${encoded}`, icon: MessageCircle },
+  const message = encodeURIComponent(shareText);
+  const messageWithUrl = encodeURIComponent(`${shareText} ${url}`);
+  const networks: { label: string; href: string; icon: ElementType }[] = [
+    { label: "WhatsApp", href: `https://wa.me/?text=${messageWithUrl}`, icon: SiWhatsapp },
+    { label: "Telegram", href: `https://t.me/share/url?url=${encoded}&text=${message}`, icon: SiTelegram },
+    { label: "X", href: `https://twitter.com/intent/tweet?text=${message}&url=${encoded}`, icon: SiX },
+    { label: "Threads", href: `https://www.threads.net/intent/post?text=${messageWithUrl}`, icon: SiThreads },
+    { label: "Bluesky", href: `https://bsky.app/intent/compose?text=${messageWithUrl}`, icon: SiBluesky },
     { label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`, icon: Facebook },
     { label: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, icon: Linkedin },
-    { label: "E-mail", href: `mailto:?subject=${message}&body=${encoded}`, icon: Mail },
+    { label: "Reddit", href: `https://www.reddit.com/submit?url=${encoded}&title=${message}`, icon: SiReddit },
+    { label: "Pinterest", href: `https://www.pinterest.com/pin/create/button/?url=${encoded}&description=${message}`, icon: SiPinterest },
+    { label: "SMS", href: `sms:?&body=${messageWithUrl}`, icon: MessageSquareText },
+    { label: "E-mail", href: `mailto:?subject=${message}&body=${messageWithUrl}`, icon: Mail },
   ];
 
   async function copy() {
