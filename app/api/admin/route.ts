@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { getAdminData, sqlClient } from "@/lib/db";
+import { ensureQrSchema, getAdminData, sqlClient } from "@/lib/db";
 import { normalizeUrl } from "@/lib/urls";
 import { discordInvite, getDiscordStats } from "@/lib/discord";
 
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   const sql = sqlClient();
 
   try {
+    if (body.action === "createQr" || body.action === "updateQr" || body.action === "deleteQr") await ensureQrSchema();
     switch (body.action) {
       case "settings":
         await sql`UPDATE site_settings SET display_name=${String(body.displayName)}, bio=${String(body.bio)}, updated_at=NOW() WHERE id=1`;
@@ -123,6 +124,10 @@ export async function POST(request: Request) {
         await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, tracking_enabled=${trackingEnabled}, tracking_key=${trackingKey}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
+      case "deleteQr":
+        await sql`DELETE FROM click_events WHERE qr_code_id=${body.id}`;
+        await sql`DELETE FROM qr_codes WHERE id=${body.id}`;
+        break;
       default:
         return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
     }
