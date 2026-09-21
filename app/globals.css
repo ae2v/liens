@@ -437,7 +437,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .override-heading button { display: inline-flex; align-items: center; gap: 5px; padding: 4px; border: 0; color: var(--red); background: transparent; font-size: .68rem; font-weight: 700; cursor: pointer; }
 .override-heading button svg { width: 13px; }
 .override-field input:disabled, .override-field textarea:disabled { color: #717171; background: #f2f2f1; }
-.social-admin { width: 100%; margin: 32px auto 34px; }
+.social-admin { margin-block: 32px 34px; }
 .social-admin .list-heading { margin: 0 0 14px; }
 .social-admin-icons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .social-admin-icons button { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: #fff; cursor: pointer; }
