@@ -135,7 +135,7 @@ export async function getAdminData() {
     sql`SELECT s.*, COUNT(c.id)::int AS clicks, COUNT(c.id) FILTER (WHERE c.occurred_at >= NOW() - INTERVAL '7 days')::int AS clicks_this_week, MAX(c.occurred_at) AS last_click_at FROM short_links s LEFT JOIN click_events c ON c.short_link_id = s.id GROUP BY s.id ORDER BY s.created_at DESC`,
     sql`SELECT q.*, COUNT(c.id)::int AS scans FROM qr_codes q LEFT JOIN click_events c ON c.qr_code_id=q.id GROUP BY q.id ORDER BY q.created_at DESC`,
     sql`SELECT COUNT(*)::int AS clicks, COUNT(*) FILTER (WHERE occurred_at >= NOW() - INTERVAL '7 days')::int AS week FROM click_events`,
-    sql`SELECT * FROM social_networks ORDER BY sort_order, created_at`,
+    sql`SELECT * FROM social_networks WHERE url<>'' ORDER BY sort_order, created_at`,
   ]);
   return {
     settings: mapSettings(settingsRows[0]),
