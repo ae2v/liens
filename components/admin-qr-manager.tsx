@@ -26,17 +26,16 @@ function AppearanceFields({ foreground, background, onForeground, onBackground }
   return <><div className="color-row"><label>Modules<input type="color" value={foreground} onChange={(event) => onForeground(event.target.value)} /></label><label>Fond<input type="color" disabled={transparent} value={transparent ? "#ffffff" : background} onChange={(event) => onBackground(event.target.value)} /></label></div><label className="toggle-label"><input type="checkbox" checked={transparent} onChange={(event) => onBackground(event.target.checked ? "transparent" : "#ffffff")} /><span />Fond transparent</label></>;
 }
 
-export function QrCodesManager({ records, act }: { records: QrCodeRecord[]; act: AdminAction }) {
-  const [selected, setSelected] = useState<string | "new" | null>(null);
+export function QrCodesManager({ records, act, selected, onSelect, onBack }: { records: QrCodeRecord[]; act: AdminAction; selected: string | null; onSelect: (id: string | null) => void; onBack: () => void }) {
   const [search, setSearch] = useState("");
   const standalone = records.filter((entry) => !entry.shortLinkId);
   const record = standalone.find((entry) => entry.id === selected);
-  if (selected === "new") return <QrEditor act={act} onBack={() => setSelected(null)} />;
-  if (record) return <QrDetail key={record.updatedAt} record={record} act={act} onBack={() => setSelected(null)} />;
+  if (selected === "new") return <QrEditor act={act} onBack={onBack} />;
+  if (record) return <QrDetail key={record.updatedAt} record={record} act={act} onBack={onBack} />;
   const visible = standalone.filter((entry) => `${entry.name} ${entry.targetUrl}`.toLowerCase().includes(search.toLowerCase()));
-  return <><header className="admin-section-header"><div><h1>Codes QR</h1><p>QR codes autonomes pour des destinations directes ou suivies.</p></div><button className="primary-button" onClick={() => setSelected("new")}><Plus />Créer un code</button></header>
+  return <><header className="admin-section-header"><div><h1>Codes QR</h1><p>QR codes autonomes pour des destinations directes ou suivies.</p></div><button className="primary-button" onClick={() => onSelect("new")}><Plus />Créer un code</button></header>
     <div className="links-toolbar"><label className="search-field"><Search /><input aria-label="Rechercher un QR code" placeholder="Rechercher parmi les codes" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
-    <div className="resource-list qr-resource-list">{visible.map((entry) => <article key={entry.id}><Image unoptimized width={86} height={86} src={`/api/qr?data=${encodeURIComponent(entry.trackingUrl)}&format=svg&dark=${encodeURIComponent(entry.foreground)}&light=${encodeURIComponent(entry.background)}`} alt="" /><button className="resource-copy" onClick={() => setSelected(entry.id)}><strong>{entry.name || "QR sans titre"}</strong><span>{entry.targetUrl}</span><small>{entry.trackingEnabled ? `${entry.scans} scans · ` : ""}créé le {date(entry.createdAt)} · modifié le {date(entry.updatedAt)}</small></button><div className="resource-actions"><QrDownloads data={entry.trackingUrl} foreground={entry.foreground} background={entry.background} />{entry.trackingEnabled && <button aria-label="Détails et statistiques" onClick={() => setSelected(entry.id)}><BarChart3 /></button>}</div></article>)}</div>
+    <div className="resource-list qr-resource-list">{visible.map((entry) => <article key={entry.id}><Image unoptimized width={86} height={86} src={`/api/qr?data=${encodeURIComponent(entry.trackingUrl)}&format=svg&dark=${encodeURIComponent(entry.foreground)}&light=${encodeURIComponent(entry.background)}`} alt="" /><button className="resource-copy" onClick={() => onSelect(entry.id)}><strong>{entry.name || "QR sans titre"}</strong><span>{entry.targetUrl}</span><small>{entry.trackingEnabled ? `${entry.scans} scans · ` : ""}créé le {date(entry.createdAt)} · modifié le {date(entry.updatedAt)}</small></button><div className="resource-actions"><QrDownloads data={entry.trackingUrl} foreground={entry.foreground} background={entry.background} />{entry.trackingEnabled && <button aria-label="Détails et statistiques" onClick={() => onSelect(entry.id)}><BarChart3 /></button>}</div></article>)}</div>
   </>;
 }
 
