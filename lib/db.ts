@@ -83,6 +83,8 @@ export async function getPublicData() {
 
 export async function getAdminData() {
   const sql = sqlClient();
+  await sql`DELETE FROM click_events WHERE qr_code_id IN (SELECT id FROM qr_codes WHERE short_link_id IS NOT NULL)`;
+  await sql`DELETE FROM qr_codes WHERE short_link_id IS NOT NULL`;
   const [settingsRows, itemRows, shortRows, qrRows, totals] = await Promise.all([
     sql`SELECT * FROM site_settings WHERE id = 1`,
     sql`SELECT p.*, COUNT(c.id)::int AS clicks FROM page_items p LEFT JOIN click_events c ON c.page_item_id = p.id GROUP BY p.id ORDER BY p.sort_order, p.created_at`,
