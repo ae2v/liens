@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import UAParser from "ua-parser-js";
-import type { PageItem, QrCodeRecord, ShortLink, SiteSettings } from "./types";
+import type { PageItem, QrCodeRecord, ShortLink, SiteSettings, SocialNetwork } from "./types";
 
 function sqlClient() {
   const url = process.env.DATABASE_URL;
@@ -28,6 +28,20 @@ export function ensureQrSchema() {
     });
   }
   return qrSchemaPromise;
+}
+
+let sharingSchemaPromise: Promise<void> | null = null;
+export function ensureSharingSchema() {
+  if (!sharingSchemaPromise) sharingSchemaPromise = (async () => {
+    const sql = sqlClient();
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS social_overrides JSONB NOT NULL DEFAULT '{}'::jsonb`;
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_foreground TEXT NOT NULL DEFAULT '#171717'`;
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_background TEXT NOT NULL DEFAULT '#ffffff'`;
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE`;
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_color TEXT NOT NULL DEFAULT '#d60106'`;
+    await sql`CREATE TABLE IF NOT EXISTS social_networks (id UUID PRIMARY KEY, network TEXT NOT NULL UNIQUE, url TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  })().catch((error) => { sharingSchemaPromise = null; throw error; });
+  return sharingSchemaPromise;
 }
 
 function mapSettings(row: Record<string, unknown>): SiteSettings {
@@ -78,6 +92,11 @@ function mapShortLink(row: Record<string, unknown>): ShortLink {
     twitterLargeImage: Boolean(row.twitter_large_image),
     embedColor: String(row.embed_color ?? "#d60106"),
     imageMode: (row.image_mode ?? "url") as ShortLink["imageMode"],
+    socialOverrides: (row.social_overrides ?? {}) as ShortLink["socialOverrides"],
+    qrForeground: String(row.qr_foreground ?? "#171717"),
+    qrBackground: String(row.qr_background ?? "#ffffff"),
+    qrLogoEnabled: row.qr_logo_enabled !== false,
+    qrLogoColor: String(row.qr_logo_color ?? "#d60106"),
     expiresAt: row.expires_at ? new Date(String(row.expires_at)).toISOString() : null,
     expiryMessage: String(row.expiry_message),
     enabled: Boolean(row.enabled),
@@ -90,8 +109,9 @@ function mapShortLink(row: Record<string, unknown>): ShortLink {
 }
 
 export async function getPublicData() {
+  await ensureSharingSchema();
   const sql = sqlClient();
-  const [settingsRows, itemRows] = await Promise.all([
+  const [settingsRows, itemRows, networkRows] = await Promise.all([
     sql`SELECT * FROM site_settings WHERE id = 1`,
     sql`SELECT p.*, COUNT(c.id)::int AS clicks
         FROM page_items p
@@ -99,21 +119,23 @@ export async function getPublicData() {
         WHERE p.enabled = TRUE
         GROUP BY p.id
         ORDER BY p.sort_order ASC, p.created_at ASC`,
+    sql`SELECT * FROM social_networks WHERE enabled=TRUE AND url<>'' ORDER BY sort_order, created_at`,
   ]);
-  return { settings: mapSettings(settingsRows[0]), items: itemRows.map(mapItem) };
+  return { settings: mapSettings(settingsRows[0]), items: itemRows.map(mapItem), networks: networkRows.map(mapNetwork) };
 }
 
 export async function getAdminData() {
-  await ensureQrSchema();
+  await Promise.all([ensureQrSchema(), ensureSharingSchema()]);
   const sql = sqlClient();
   await sql`DELETE FROM click_events WHERE qr_code_id IN (SELECT id FROM qr_codes WHERE short_link_id IS NOT NULL)`;
   await sql`DELETE FROM qr_codes WHERE short_link_id IS NOT NULL`;
-  const [settingsRows, itemRows, shortRows, qrRows, totals] = await Promise.all([
+  const [settingsRows, itemRows, shortRows, qrRows, totals, networkRows] = await Promise.all([
     sql`SELECT * FROM site_settings WHERE id = 1`,
     sql`SELECT p.*, COUNT(c.id)::int AS clicks FROM page_items p LEFT JOIN click_events c ON c.page_item_id = p.id GROUP BY p.id ORDER BY p.sort_order, p.created_at`,
     sql`SELECT s.*, COUNT(c.id)::int AS clicks, COUNT(c.id) FILTER (WHERE c.occurred_at >= NOW() - INTERVAL '7 days')::int AS clicks_this_week, MAX(c.occurred_at) AS last_click_at FROM short_links s LEFT JOIN click_events c ON c.short_link_id = s.id GROUP BY s.id ORDER BY s.created_at DESC`,
     sql`SELECT q.*, COUNT(c.id)::int AS scans FROM qr_codes q LEFT JOIN click_events c ON c.qr_code_id=q.id GROUP BY q.id ORDER BY q.created_at DESC`,
     sql`SELECT COUNT(*)::int AS clicks, COUNT(*) FILTER (WHERE occurred_at >= NOW() - INTERVAL '7 days')::int AS week FROM click_events`,
+    sql`SELECT * FROM social_networks ORDER BY sort_order, created_at`,
   ]);
   return {
     settings: mapSettings(settingsRows[0]),
@@ -132,6 +154,7 @@ export async function getAdminData() {
         ? `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/q/${row.tracking_key || row.id}`
         : String(row.target_url),
     })),
+    networks: networkRows.map(mapNetwork),
     totals: { clicks: Number(totals[0].clicks), week: Number(totals[0].week) },
   };
 }
@@ -143,9 +166,14 @@ export async function getSettings() {
 }
 
 export async function getShortLink(slug: string) {
+  await ensureSharingSchema();
   const sql = sqlClient();
   const rows = await sql`SELECT s.*, COUNT(c.id)::int AS clicks, COUNT(c.id) FILTER (WHERE c.occurred_at >= NOW() - INTERVAL '7 days')::int AS clicks_this_week, MAX(c.occurred_at) AS last_click_at FROM short_links s LEFT JOIN click_events c ON c.short_link_id = s.id WHERE LOWER(s.slug) = LOWER(${slug}) GROUP BY s.id`;
   return rows[0] ? mapShortLink(rows[0]) : null;
+}
+
+function mapNetwork(row: Record<string, unknown>): SocialNetwork {
+  return { id: String(row.id), network: String(row.network), url: String(row.url), sortOrder: Number(row.sort_order), enabled: Boolean(row.enabled) };
 }
 
 export async function recordShortClick(linkId: string, request: Request) {

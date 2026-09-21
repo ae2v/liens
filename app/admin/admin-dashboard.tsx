@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { Link2, LogOut, QrCode, PanelsTopLeft } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import type { PageItem, QrCodeRecord, ShortLink, SiteSettings } from "@/lib/types";
+import type { PageItem, QrCodeRecord, ShortLink, SiteSettings, SocialNetwork } from "@/lib/types";
 import { logoutAction } from "./actions";
 import { ShortLinksManager } from "@/components/admin-short-links";
 import { PageItemsManager } from "@/components/admin-page-items";
 import { QrCodesManager } from "@/components/admin-qr-manager";
 
-export type AdminData = { settings: SiteSettings; items: PageItem[]; shortLinks: ShortLink[]; qrCodes: QrCodeRecord[]; totals: { clicks: number; week: number } };
+export type AdminData = { settings: SiteSettings; items: PageItem[]; networks: SocialNetwork[]; shortLinks: ShortLink[]; qrCodes: QrCodeRecord[]; totals: { clicks: number; week: number } };
 export type AdminAction = (payload: Record<string, unknown>, message?: string) => Promise<unknown>;
 type AdminTab = "page" | "short" | "qr";
 type AdminLocation = { tab: AdminTab; selected: string | null };

@@ -51,6 +51,11 @@ export type ShortLink = {
   twitterLargeImage: boolean;
   embedColor: string;
   imageMode: "url" | "upload" | "generated";
+  socialOverrides: Partial<Pick<SocialMetadata, "title" | "description" | "imageUrl" | "imageAlt" | "siteName" | "twitterLargeImage" | "embedColor"> & { imageMode: "url" | "upload" | "generated" }>;
+  qrForeground: string;
+  qrBackground: string;
+  qrLogoEnabled: boolean;
+  qrLogoColor: string;
   expiresAt: string | null;
   expiryMessage: string;
   enabled: boolean;
@@ -59,6 +64,14 @@ export type ShortLink = {
   clicks: number;
   clicksThisWeek: number;
   lastClickAt: string | null;
+};
+
+export type SocialNetwork = {
+  id: string;
+  network: string;
+  url: string;
+  sortOrder: number;
+  enabled: boolean;
 };
 
 export type QrCodeRecord = {

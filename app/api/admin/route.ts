@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { ensureQrSchema, getAdminData, sqlClient } from "@/lib/db";
+import { ensureQrSchema, ensureSharingSchema, getAdminData, sqlClient } from "@/lib/db";
 import { normalizeUrl } from "@/lib/urls";
 import { discordInvite, getDiscordStats } from "@/lib/discord";
 
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   const sql = sqlClient();
 
   try {
-    if (body.action === "createQr" || body.action === "updateQr" || body.action === "deleteQr") await ensureQrSchema();
+    if (["createQr", "updateQr", "deleteQr"].includes(body.action)) await ensureQrSchema();
+    if (["createShort", "updateShort", "saveSocial", "deleteSocial"].includes(body.action)) await ensureSharingSchema();
     switch (body.action) {
       case "settings":
         await sql`UPDATE site_settings SET display_name=${String(body.displayName)}, bio=${String(body.bio)}, updated_at=NOW() WHERE id=1`;
@@ -64,6 +65,21 @@ export async function POST(request: Request) {
       case "deleteItem":
         await sql`DELETE FROM page_items WHERE id=${body.id}`;
         break;
+      case "saveSocial": {
+        const network = String(body.network || "").trim();
+        if (!network) throw new Error("Choisis un réseau.");
+        const url = socialUrl(String(body.url || ""));
+        const existing = await sql`SELECT id FROM social_networks WHERE LOWER(network)=LOWER(${network})`;
+        if (existing.length) await sql`UPDATE social_networks SET url=${url}, enabled=TRUE, updated_at=NOW() WHERE id=${existing[0].id}`;
+        else {
+          const next = await sql`SELECT COALESCE(MAX(sort_order), 0) + 10 AS value FROM social_networks`;
+          await sql`INSERT INTO social_networks (id, network, url, sort_order) VALUES (${randomUUID()}, ${network}, ${url}, ${Number(next[0].value)})`;
+        }
+        break;
+      }
+      case "deleteSocial":
+        await sql`DELETE FROM social_networks WHERE id=${body.id}`;
+        break;
       case "moveItem": {
         const rows = await sql`SELECT id FROM page_items ORDER BY sort_order, created_at`;
         const ids = rows.map((row) => String(row.id));
@@ -82,7 +98,7 @@ export async function POST(request: Request) {
         body.imageUrl = imageValue(body.imageUrl, body.imageMode);
         if (await sql`SELECT id FROM short_links WHERE LOWER(slug)=LOWER(${slug})`.then(rows => rows.length)) throw new Error("Ce slug existe déjà.");
         const id = randomUUID();
-        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, image_alt, site_name, twitter_site, twitter_large_image, embed_color, image_mode, expires_at, expiry_message) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.imageAlt || ""}, ${body.siteName || ""}, ${body.twitterSite || ""}, ${body.twitterLargeImage !== false}, ${validColor(body.embedColor)}, ${body.imageMode || "url"}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."})`;
+        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, image_alt, site_name, twitter_site, twitter_large_image, embed_color, image_mode, social_overrides, qr_foreground, qr_background, qr_logo_enabled, qr_logo_color, expires_at, expiry_message, enabled) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.imageAlt || ""}, ${body.siteName || ""}, '@AE2V_BDE', ${body.twitterLargeImage !== false}, ${validColor(body.embedColor)}, ${body.imageMode || "url"}, ${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, ${body.qrForeground || '#171717'}, ${body.qrBackground || '#ffffff'}, ${body.qrLogoEnabled !== false}, ${validColor(body.qrLogoColor)}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."}, ${body.enabled !== false})`;
         return NextResponse.json({ ok: true, shortLink: { id, slug } });
       }
       case "updateShort": {
@@ -94,7 +110,8 @@ export async function POST(request: Request) {
         if (conflict.length) throw new Error("Ce slug existe déjà.");
         const current = await sql`SELECT id FROM short_links WHERE id=${body.id}`;
         if (!current.length) throw new Error("Lien introuvable.");
-        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site=${String(body.twitterSite || '')}, twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
+        if (!hexColor(body.qrForeground) || !backgroundColor(body.qrBackground) || !hexColor(body.qrLogoColor)) throw new Error("Couleur de QR code invalide.");
+        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site='@AE2V_BDE', twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, social_overrides=${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, qr_foreground=${body.qrForeground}, qr_background=${body.qrBackground}, qr_logo_enabled=${body.qrLogoEnabled !== false}, qr_logo_color=${body.qrLogoColor}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       case "toggleShort":
@@ -156,4 +173,22 @@ function imageValue(value: unknown, mode: unknown) {
     return image;
   }
   return normalizeUrl(image, false);
+}
+
+function socialUrl(value: string) {
+  const trimmed = value.trim();
+  if (/^mailto:[^\s@]+@[^\s@]+$/i.test(trimmed)) return trimmed;
+  return normalizeUrl(trimmed);
+}
+
+function safeSocialOverrides(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const key of ["title", "description", "imageAlt", "siteName"] as const) if (key in source) result[key] = String(source[key] ?? "").slice(0, key === "description" ? 240 : 120);
+  if ("twitterLargeImage" in source) result.twitterLargeImage = Boolean(source.twitterLargeImage);
+  if ("embedColor" in source) result.embedColor = validColor(source.embedColor);
+  if ("imageMode" in source && ["url", "upload", "generated"].includes(String(source.imageMode))) result.imageMode = String(source.imageMode);
+  if ("imageUrl" in source) result.imageUrl = imageValue(source.imageUrl, source.imageMode || "url");
+  return result;
 }

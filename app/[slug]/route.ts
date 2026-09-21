@@ -19,9 +19,10 @@ export async function GET(request: Request, context: { params: Promise<{ slug: s
 
   const userAgent = request.headers.get("user-agent") ?? "";
   if (botPattern.test(userAgent)) {
+    const meta = { title: link.title, description: link.description, imageUrl: link.imageUrl, imageAlt: link.imageAlt, siteName: link.siteName, twitterLargeImage: link.twitterLargeImage, embedColor: link.embedColor, imageMode: link.imageMode, ...link.socialOverrides };
     const origin = new URL(request.url).origin;
-    const image = link.imageMode === "generated" ? `${origin}/api/share-image/${link.id}` : link.imageMode === "upload" ? `${origin}/api/meta-image/${link.id}` : link.imageUrl || `${origin}/opengraph-image`;
-    return new NextResponse(html(link.title, link.description || "Un lien partagé par l’AE2V.", image, request.url, false, { imageAlt: link.imageAlt, siteName: link.siteName, twitterSite: link.twitterSite, largeImage: link.twitterLargeImage, color: link.embedColor }), { headers: { "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" } });
+    const image = meta.imageMode === "generated" ? `${origin}/api/share-image/${link.id}` : meta.imageMode === "upload" ? `${origin}/api/meta-image/${link.id}` : meta.imageUrl || `${origin}/opengraph-image`;
+    return new NextResponse(html(meta.title, meta.description || "Un lien partagé par l’AE2V.", image, request.url, false, { imageAlt: meta.imageAlt, siteName: meta.siteName, twitterSite: "@AE2V_BDE", largeImage: meta.twitterLargeImage, color: meta.embedColor }), { headers: { "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" } });
   }
   if (request.method === 'GET') await recordShortClick(link.id, request);
   const response = NextResponse.redirect(link.destination, 307);

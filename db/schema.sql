@@ -41,8 +41,23 @@ CREATE TABLE IF NOT EXISTS short_links (
   twitter_large_image BOOLEAN NOT NULL DEFAULT TRUE,
   embed_color TEXT NOT NULL DEFAULT '#d60106',
   image_mode TEXT NOT NULL DEFAULT 'url' CHECK (image_mode IN ('url', 'upload', 'generated')),
+  social_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
+  qr_foreground TEXT NOT NULL DEFAULT '#171717',
+  qr_background TEXT NOT NULL DEFAULT '#ffffff',
+  qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  qr_logo_color TEXT NOT NULL DEFAULT '#d60106',
   expires_at TIMESTAMPTZ,
   expiry_message TEXT NOT NULL DEFAULT 'Ce lien a expiré.',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS social_networks (
+  id UUID PRIMARY KEY,
+  network TEXT NOT NULL UNIQUE,
+  url TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -88,6 +103,11 @@ ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_site TEXT NOT NULL DEFA
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_large_image BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS embed_color TEXT NOT NULL DEFAULT '#d60106';
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS image_mode TEXT NOT NULL DEFAULT 'url';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS social_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_foreground TEXT NOT NULL DEFAULT '#171717';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_background TEXT NOT NULL DEFAULT '#ffffff';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_color TEXT NOT NULL DEFAULT '#d60106';
 ALTER TABLE click_events ADD COLUMN IF NOT EXISTS city TEXT;
 ALTER TABLE click_events ADD COLUMN IF NOT EXISTS browser TEXT;
 ALTER TABLE click_events ADD COLUMN IF NOT EXISTS os TEXT;
@@ -108,6 +128,13 @@ DELETE FROM qr_codes WHERE short_link_id IS NOT NULL;
 
 INSERT INTO site_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 UPDATE site_settings SET logo_path = '/assets/logo-ae2v.svg' WHERE logo_path IN ('/assets/favicon.ico', '/assets/avatar.svg');
+
+INSERT INTO social_networks (id, network, url, sort_order) VALUES
+  ('10000000-0000-4000-8000-000000000001', 'Instagram', 'https://www.instagram.com/bde.velizy/', 10),
+  ('10000000-0000-4000-8000-000000000002', 'Facebook', 'https://www.facebook.com/Ae2velizy', 20),
+  ('10000000-0000-4000-8000-000000000003', 'X', 'https://x.com/AE2V_BDE', 30),
+  ('10000000-0000-4000-8000-000000000004', 'Mail', 'mailto:ae2v.asso@gmail.com', 40)
+ON CONFLICT (network) DO NOTHING;
 
 INSERT INTO page_items (id, kind, title, subtitle, url, icon, sort_order) VALUES
   ('00000000-0000-4000-8000-000000000001', 'discord', 'Rejoins notre Discord', 'La communauté étudiante de Vélizy', 'https://discord.gg/z85wnSmdnH', 'Discord', 10),

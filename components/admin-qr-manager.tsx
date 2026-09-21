@@ -7,7 +7,7 @@ import type { AdminAction } from "@/app/admin/admin-dashboard";
 import type { QrCodeRecord } from "@/lib/types";
 import { normalizeUrl } from "@/lib/urls";
 import { AdminAnalytics } from "./admin-analytics";
-import { QrDownloads } from "./admin-qr";
+import { AttachedQr, QrDownloads } from "./admin-qr";
 
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://liens.ae2v.fr").replace(/\/$/, "");
 const date = (value: string) => new Date(value).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
@@ -32,7 +32,7 @@ function normalized(value: string) {
 function useQrInfo(value: string) {
   const [info, setInfo] = useState<QrInfo | null>(null);
   useEffect(() => {
-    if (!value) { setInfo(null); return; }
+    if (!value) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       fetch(`/api/qr-info?data=${encodeURIComponent(value)}`, { signal: controller.signal })
@@ -64,30 +64,6 @@ function qrUrl(data: string, foreground: string, background: string, logoEnabled
   return `/api/qr?${query}`;
 }
 
-function AppearanceFields({ foreground, background, logoEnabled, logoAllowed, logoColor, onForeground, onBackground, onLogoEnabled, onLogoColor }: {
-  foreground: string;
-  background: string;
-  logoEnabled: boolean;
-  logoAllowed: boolean;
-  logoColor: string;
-  onForeground: (value: string) => void;
-  onBackground: (value: string) => void;
-  onLogoEnabled: (value: boolean) => void;
-  onLogoColor: (value: string) => void;
-}) {
-  const transparent = background === "transparent";
-  const effectiveLogo = logoEnabled && logoAllowed;
-  return <>
-    <div className="color-row">
-      <label>Modules<input type="color" value={foreground} onChange={(event) => onForeground(event.target.value)} /></label>
-      <label style={{ opacity: transparent ? 0.55 : 1 }}>Fond<input type="color" disabled={transparent} value={transparent ? "#ffffff" : background} onChange={(event) => onBackground(event.target.value)} /></label>
-      <label style={{ opacity: effectiveLogo ? 1 : 0.55 }}>Logo<input type="color" disabled={!effectiveLogo} value={logoColor} onChange={(event) => onLogoColor(event.target.value)} /></label>
-    </div>
-    <label className="toggle-label"><input type="checkbox" checked={transparent} onChange={(event) => onBackground(event.target.checked ? "transparent" : "#ffffff")} /><span />Fond transparent</label>
-    <label className="toggle-label" style={{ opacity: logoAllowed ? 1 : 0.55 }}><input type="checkbox" disabled={!logoAllowed} checked={logoAllowed ? logoEnabled : false} onChange={(event) => onLogoEnabled(event.target.checked)} /><span />Afficher le logo AE2V</label>
-  </>;
-}
-
 export function QrCodesManager({ records, act, selected, onSelect, onBack }: { records: QrCodeRecord[]; act: AdminAction; selected: string | null; onSelect: (id: string | null) => void; onBack: () => void }) {
   const [search, setSearch] = useState("");
   const standalone = records.filter((entry) => !entry.shortLinkId);
@@ -111,6 +87,7 @@ function QrEditor({ act, onBack }: { act: AdminAction; onBack: () => void }) {
 
   useEffect(() => {
     if (!info || trackingTouched) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm((current) => current.trackingEnabled === info.compactHelps ? current : { ...current, trackingEnabled: info.compactHelps });
   }, [info, trackingTouched]);
 
@@ -129,7 +106,7 @@ function QrEditor({ act, onBack }: { act: AdminAction; onBack: () => void }) {
   const previewData = form.trackingEnabled ? `${siteUrl}/q/xxxx` : destination;
   const notice = destinationNotice(info, form.trackingEnabled);
 
-  return <><button className="back-button" onClick={onBack}><ArrowLeft />Tous les QR codes</button><header className="admin-section-header"><div><h1>Créer un code QR</h1></div></header><div className="qr-workspace"><form className="detail-card edit-form" onSubmit={submit}><section className="form-section"><h2>Détails</h2><label>Nom interne (facultatif)<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Destination<input required placeholder="ae2v.fr" value={form.targetUrl} onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} /></label>{notice && <p className="stats-note">{notice}</p>}</section><section className="form-section"><h2>QR compact et suivi</h2><label className="toggle-label"><input type="checkbox" checked={form.trackingEnabled} onChange={(event) => { setTrackingTouched(true); setForm({ ...form, trackingEnabled: event.target.checked }); }} /><span />Utiliser une adresse courte et suivre les scans</label><p className="stats-note">Utilise une adresse courte /q/xxxx lorsqu’elle permet de réduire le QR et active les statistiques de scan. Désactivé, le QR contient directement la destination.</p></section><section className="form-section"><h2>Apparence</h2><AppearanceFields foreground={form.foreground} background={form.background} logoEnabled={form.logoEnabled} logoAllowed={logoAllowed} logoColor={form.logoColor} onForeground={(foreground) => setForm({ ...form, foreground })} onBackground={(background) => setForm({ ...form, background })} onLogoEnabled={(logoEnabled) => setForm({ ...form, logoEnabled })} onLogoColor={(logoColor) => setForm({ ...form, logoColor })} /></section>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={busy}><QrCode />{busy ? "Création…" : "Créer le QR code"}</button></form><div className="qr-preview">{previewData ? <><Image unoptimized width={260} height={260} src={qrUrl(previewData, form.foreground, form.background, effectiveLogo, form.logoColor)} alt="Aperçu du QR code" /><strong>{form.name || "Aperçu"}</strong><small>{destination}</small></> : <><QrCode /><strong>L’aperçu apparaîtra ici</strong></>}</div></div></>;
+  return <><button className="back-button" onClick={onBack}><ArrowLeft />Tous les QR codes</button><header className="admin-section-header"><div><h1>Créer un code QR</h1></div></header><div className="qr-workspace"><form className="detail-card edit-form" onSubmit={submit}><section className="form-section"><h2>Détails</h2><label>Nom interne (facultatif)<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Destination<input required placeholder="ae2v.fr" value={form.targetUrl} onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} /></label>{notice && <p className="stats-note">{notice}</p>}</section><section className="form-section"><h2>QR compact et suivi</h2><label className="toggle-label"><input type="checkbox" checked={form.trackingEnabled} onChange={(event) => { setTrackingTouched(true); setForm({ ...form, trackingEnabled: event.target.checked }); }} /><span />Utiliser une adresse courte et suivre les scans</label><p className="stats-note">Utilise une adresse courte /q/xxxx et active les statistiques de scan. Désactivé, le QR contient directement la destination.</p></section>{error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={busy}><QrCode />{busy ? "Création…" : "Créer le QR code"}</button></form><AttachedQr name={form.name || "Aperçu"} target={previewData} sourceTarget={destination} appearance={{ foreground: form.foreground, background: form.background, logoEnabled: effectiveLogo, logoColor: form.logoColor }} onAppearanceChange={(appearance) => setForm({ ...form, foreground: appearance.foreground, background: appearance.background, logoEnabled: appearance.logoEnabled, logoColor: appearance.logoColor })} /></div></>;
 }
 
 function QrDetail({ record, act, onBack }: { record: QrCodeRecord; act: AdminAction; onBack: () => void }) {
@@ -154,5 +131,5 @@ function QrDetail({ record, act, onBack }: { record: QrCodeRecord; act: AdminAct
   const previewData = form.trackingEnabled ? (record.trackingEnabled ? record.trackingUrl : `${siteUrl}/q/xxxx`) : destination;
   const notice = destinationNotice(info, form.trackingEnabled);
 
-  return <><button className="back-button" onClick={onBack}><ArrowLeft />Tous les QR codes</button><header className="admin-section-header"><div><h1>{displayName}</h1><p>{record.trackingEnabled ? `${record.scans} scans · ` : ""}créé le {date(record.createdAt)} · modifié le {date(record.updatedAt)}</p></div><QrDownloads data={previewData || record.trackingUrl} foreground={form.foreground} background={form.background} logoEnabled={effectiveLogo} logoColor={form.logoColor} /></header><div className="detail-layout"><form className="detail-card edit-form" onSubmit={submit}><section className="form-section"><h2>Détails</h2><label>Nom interne (facultatif)<input value={form.name} placeholder="QR sans titre" onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Destination<input required value={form.targetUrl} placeholder="ae2v.fr" onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} /></label>{notice && <p className="stats-note">{notice}</p>}</section><section className="form-section"><h2>QR compact et suivi</h2><label className="toggle-label"><input type="checkbox" checked={form.trackingEnabled} onChange={(event) => setForm({ ...form, trackingEnabled: event.target.checked })} /><span />Utiliser une adresse courte et suivre les scans</label><p className="stats-note">Utilise une adresse courte /q/xxxx lorsqu’elle permet de réduire le QR et active les statistiques de scan. Désactivé, le QR contient directement la destination.</p></section><section className="form-section"><h2>Apparence</h2><AppearanceFields foreground={form.foreground} background={form.background} logoEnabled={form.logoEnabled} logoAllowed={logoAllowed} logoColor={form.logoColor} onForeground={(foreground) => setForm({ ...form, foreground })} onBackground={(background) => setForm({ ...form, background })} onLogoEnabled={(logoEnabled) => setForm({ ...form, logoEnabled })} onLogoColor={(logoColor) => setForm({ ...form, logoColor })} /></section>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="danger-button" disabled={busy} onClick={async () => { if (!confirm("Supprimer ce QR code et ses données de scan ?")) return; setBusy(true); setError(""); try { await act({ action: "deleteQr", id: record.id }, "QR code supprimé"); onBack(); } catch (error) { setError(error instanceof Error ? error.message : "Suppression impossible"); setBusy(false); } }}><Trash2 />Supprimer</button><button className="primary-button" disabled={busy}><Save />{busy ? "Enregistrement…" : "Enregistrer"}</button></div></form><section className="attached-qr"><Image unoptimized width={240} height={240} src={qrUrl(previewData || record.trackingUrl, form.foreground, form.background, effectiveLogo, form.logoColor)} alt={`QR code ${displayName}`} /><QrDownloads data={previewData || record.trackingUrl} foreground={form.foreground} background={form.background} logoEnabled={effectiveLogo} logoColor={form.logoColor} /></section></div>{record.trackingEnabled ? <AdminAnalytics id={record.id} kind="qr" /> : <section className="detail-card"><p className="stats-note">Active « QR compact et suivi » pour voir les données de scan.</p></section>}</>;
+  return <><button className="back-button" onClick={onBack}><ArrowLeft />Tous les QR codes</button><header className="admin-section-header"><div><h1>{displayName}</h1><p>{record.trackingEnabled ? `${record.scans} scans · ` : ""}créé le {date(record.createdAt)} · modifié le {date(record.updatedAt)}</p></div></header><div className="detail-layout"><form className="detail-card edit-form" onSubmit={submit}><section className="form-section"><h2>Détails</h2><label>Nom interne (facultatif)<input value={form.name} placeholder="QR sans titre" onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Destination<input required value={form.targetUrl} placeholder="ae2v.fr" onChange={(event) => setForm({ ...form, targetUrl: event.target.value })} /></label>{notice && <p className="stats-note">{notice}</p>}</section><section className="form-section"><h2>QR compact et suivi</h2><label className="toggle-label"><input type="checkbox" checked={form.trackingEnabled} onChange={(event) => setForm({ ...form, trackingEnabled: event.target.checked })} /><span />Utiliser une adresse courte et suivre les scans</label></section>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="danger-button" disabled={busy} onClick={async () => { if (!confirm("Supprimer ce QR code et ses données de scan ?")) return; setBusy(true); try { await act({ action: "deleteQr", id: record.id }, "QR code supprimé"); onBack(); } catch { setBusy(false); } }}><Trash2 />Supprimer</button><button className="primary-button" disabled={busy}><Save />{busy ? "Enregistrement…" : "Enregistrer"}</button></div></form><AttachedQr name={displayName} target={previewData || record.trackingUrl} sourceTarget={destination} appearance={{ foreground: form.foreground, background: form.background, logoEnabled: effectiveLogo, logoColor: form.logoColor }} onAppearanceChange={(appearance) => setForm({ ...form, foreground: appearance.foreground, background: appearance.background, logoEnabled: appearance.logoEnabled, logoColor: appearance.logoColor })} /></div>{record.trackingEnabled ? <AdminAnalytics id={record.id} kind="qr" /> : <section className="detail-card"><p className="stats-note">Active « QR compact et suivi » pour voir les données de scan.</p></section>}</>;
 }

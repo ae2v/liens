@@ -8,6 +8,7 @@ import { AttachedQr } from "./admin-qr";
 import type { AdminAction, AdminData } from "@/app/admin/admin-dashboard";
 import type { DiscordStats } from "@/lib/discord";
 import type { PageItem } from "@/lib/types";
+import { SocialNetworksEditor } from "./admin-social-networks";
 
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://liens.ae2v.fr").replace(/\/$/, "");
 const localDate = (value: string | null) => value ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
@@ -20,6 +21,7 @@ export function PageItemsManager({ data, act, selected, onSelect, onBack }: { da
   return <>
     <header className="admin-section-header"><div><h1>Page de liens</h1><p>Les accès utiles affichés sur liens.ae2v.fr.</p></div><a className="secondary-button" href="/" target="_blank">Voir la page<ExternalLink /></a></header>
     <form className="settings-strip" onSubmit={async (event) => { event.preventDefault(); await act({ action: "settings", ...settings }, "Présentation enregistrée"); }}><label>Nom affiché<input value={settings.displayName} onChange={(event) => setSettings({ ...settings, displayName: event.target.value })} /></label><label>Sous-titre<input value={settings.bio} onChange={(event) => setSettings({ ...settings, bio: event.target.value })} /></label><button className="primary-button"><Save />Enregistrer</button></form>
+    <SocialNetworksEditor networks={data.networks} act={act} />
     <div className="list-heading"><div><h2>Éléments</h2><span>{data.items.length} au total</span></div><button className="primary-button" onClick={async () => { await act({ action: "createItem" }, "Élément ajouté"); }}><Plus />Ajouter</button></div>
     <div className="resource-list">{data.items.map((entry, index) => <article key={entry.id} className={!entry.enabled ? "muted" : ""}>
       <span className="resource-icon"><BrandIcon name={entry.icon} size={21} /></span>
