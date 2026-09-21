@@ -98,8 +98,12 @@ export async function getAdminData() {
       id: String(row.id), name: String(row.name), targetUrl: String(row.target_url),
       shortLinkId: row.short_link_id ? String(row.short_link_id) : null,
       foreground: String(row.foreground), background: String(row.background),
+      trackingEnabled: Boolean(row.tracking_enabled),
       createdAt: new Date(String(row.created_at)).toISOString(), updatedAt: new Date(String(row.updated_at)).toISOString(),
-      scans: Number(row.scans ?? 0), trackingUrl: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/q/${row.id}`,
+      scans: Number(row.scans ?? 0),
+      trackingUrl: Boolean(row.tracking_enabled)
+        ? `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/q/${row.tracking_key || row.id}`
+        : String(row.target_url),
     })),
     totals: { clicks: Number(totals[0].clicks), week: Number(totals[0].week) },
   };
@@ -125,9 +129,9 @@ export async function recordItemClick(itemId: string, request: Request) {
   await recordClick("page_item_id", itemId, request);
 }
 
-export async function getQrCode(id: string) {
+export async function getQrCode(identifier: string) {
   const sql = sqlClient();
-  const rows = await sql`SELECT * FROM qr_codes WHERE id=${id}`;
+  const rows = await sql`SELECT * FROM qr_codes WHERE id::text=${identifier} OR tracking_key=${identifier} LIMIT 1`;
   return rows[0] ?? null;
 }
 

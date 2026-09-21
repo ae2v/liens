@@ -5,6 +5,9 @@ import { join } from "node:path";
 import sharp from "sharp";
 
 type Rect = { x: number; y: number; width: number; height: number };
+type Cutout = { x: number; y: number; width: number; height: number };
+
+const MASK_PATTERNS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
 function extractLastTopLevelGroup(source: string) {
   const groups: string[] = [];
@@ -24,7 +27,38 @@ function extractLastTopLevelGroup(source: string) {
   return groups.at(-1) ?? "";
 }
 
-function mergedRects(matrix: Uint8Array, size: number, cutout: { x: number; y: number; width: number; height: number }) {
+function cutoutFor(size: number): Cutout {
+  const width = Math.min(9, size - 16);
+  const height = Math.min(7, size - 18);
+  return { x: Math.floor((size - width) / 2), y: Math.floor((size - height) / 2), width, height };
+}
+
+function hiddenModules(matrix: Uint8Array, size: number, cutout: Cutout) {
+  let count = 0;
+  for (let y = cutout.y; y < cutout.y + cutout.height; y += 1) {
+    for (let x = cutout.x; x < cutout.x + cutout.width; x += 1) {
+      if (matrix[y * size + x]) count += 1;
+    }
+  }
+  return count;
+}
+
+function qrWithBestLogoMask(data: string) {
+  let best = QRCode.create(data, { errorCorrectionLevel: "H", maskPattern: MASK_PATTERNS[0] });
+  let bestHidden = hiddenModules(best.modules.data, best.modules.size, cutoutFor(best.modules.size));
+
+  for (const maskPattern of MASK_PATTERNS.slice(1)) {
+    const candidate = QRCode.create(data, { errorCorrectionLevel: "H", maskPattern });
+    const hidden = hiddenModules(candidate.modules.data, candidate.modules.size, cutoutFor(candidate.modules.size));
+    if (hidden < bestHidden) {
+      best = candidate;
+      bestHidden = hidden;
+    }
+  }
+  return best;
+}
+
+function mergedRects(matrix: Uint8Array, size: number, cutout: Cutout) {
   const complete: Rect[] = [];
   let active = new Map<string, Rect>();
   for (let y = 0; y < size; y += 1) {
@@ -54,12 +88,10 @@ function mergedRects(matrix: Uint8Array, size: number, cutout: { x: number; y: n
 }
 
 async function buildQrSvg(data: string, dark: string, light: string, moduleSize: number) {
-  const qr = QRCode.create(data, { errorCorrectionLevel: "H" });
+  const qr = qrWithBestLogoMask(data);
   const size = qr.modules.size;
   const quiet = 4;
-  const cutoutWidth = Math.min(9, size - 16);
-  const cutoutHeight = Math.min(7, size - 18);
-  const cutout = { x: Math.floor((size - cutoutWidth) / 2), y: Math.floor((size - cutoutHeight) / 2), width: cutoutWidth, height: cutoutHeight };
+  const cutout = cutoutFor(size);
   const totalModules = size + quiet * 2;
   const pixelSize = totalModules * moduleSize;
   const path = mergedRects(qr.modules.data, size, cutout).map((rect) => {
@@ -77,7 +109,8 @@ async function buildQrSvg(data: string, dark: string, light: string, moduleSize:
   const scale = Math.min(logoWidth / 350, logoHeight / 272.35) * 0.9;
   const tx = logoX + (logoWidth - 350 * scale) / 2;
   const ty = logoY + (logoHeight - 272.35 * scale) / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" viewBox="0 0 ${pixelSize} ${pixelSize}"><rect width="100%" height="100%" fill="${light}"/><path d="${path}" fill="${dark}" shape-rendering="crispEdges"/><g transform="translate(${tx} ${ty}) scale(${scale}) translate(-650 0)">${lionBody}</g></svg>`;
+  const background = light === "transparent" ? "" : `<rect width="100%" height="100%" fill="${light}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" viewBox="0 0 ${pixelSize} ${pixelSize}">${background}<path d="${path}" fill="${dark}" shape-rendering="crispEdges"/><g transform="translate(${tx} ${ty}) scale(${scale}) translate(-650 0)">${lionBody}</g></svg>`;
 }
 
 export async function GET(request: NextRequest) {
@@ -87,7 +120,7 @@ export async function GET(request: NextRequest) {
   const light = request.nextUrl.searchParams.get("light") ?? "#ffffff";
   const moduleSize = Math.min(32, Math.max(6, Number(request.nextUrl.searchParams.get("module") ?? 16) || 16));
   if (data.length > 2048) return NextResponse.json({ error: "Lien trop long" }, { status: 400 });
-  if (!/^#[0-9a-f]{6}$/i.test(dark) || !/^#[0-9a-f]{6}$/i.test(light)) return NextResponse.json({ error: "Couleur invalide" }, { status: 400 });
+  if (!/^#[0-9a-f]{6}$/i.test(dark) || (light !== "transparent" && !/^#[0-9a-f]{6}$/i.test(light))) return NextResponse.json({ error: "Couleur invalide" }, { status: 400 });
   const svg = await buildQrSvg(data, dark, light, Math.round(moduleSize));
   if (format === "png") {
     const buffer = await sharp(Buffer.from(svg)).png().toBuffer();

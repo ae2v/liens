@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS qr_codes (
   short_link_id UUID REFERENCES short_links(id) ON DELETE SET NULL,
   foreground TEXT NOT NULL DEFAULT '#171717',
   background TEXT NOT NULL DEFAULT '#ffffff',
+  tracking_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  tracking_key TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -89,6 +91,12 @@ ALTER TABLE click_events ADD COLUMN IF NOT EXISTS browser TEXT;
 ALTER TABLE click_events ADD COLUMN IF NOT EXISTS os TEXT;
 ALTER TABLE click_events ADD COLUMN IF NOT EXISTS qr_code_id UUID;
 ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN;
+ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_key TEXT;
+UPDATE qr_codes SET tracking_enabled = TRUE WHERE tracking_enabled IS NULL;
+ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET DEFAULT FALSE;
+ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_tracking_key_idx ON qr_codes(tracking_key) WHERE tracking_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS click_events_qr_code_idx ON click_events(qr_code_id, occurred_at DESC);
 
 INSERT INTO site_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
