@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, CheckCircle2, ExternalLink, Plus, Save, Trash2, XCircle } from "lucide-react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ArrowLeft, BarChart3, CheckCircle2, ExternalLink, GripVertical, Plus, Save, Trash2, XCircle } from "lucide-react";
 import { BrandIcon, iconNames } from "./brand-icon";
 import { AdminAnalytics } from "./admin-analytics";
 import { AttachedQr, type QrAppearance } from "./admin-qr";
@@ -17,20 +20,34 @@ const shortDate = (value: string) => new Date(value).toLocaleDateString("fr-FR",
 
 export function PageItemsManager({ data, act, selected, onSelect, onBack }: { data: AdminData; act: AdminAction; selected: string | null; onSelect: (id: string | null) => void; onBack: () => void }) {
   const [settings, setSettings] = useState(data.settings);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const item = data.items.find((entry) => entry.id === selected);
+  async function reorder(event: DragEndEvent) {
+    if (!event.over || event.active.id === event.over.id) return;
+    const from = data.items.findIndex((entry) => entry.id === event.active.id);
+    const to = data.items.findIndex((entry) => entry.id === event.over?.id);
+    if (from < 0 || to < 0) return;
+    const next = arrayMove(data.items, from, to);
+    await act({ action: "reorderItems", ids: next.map((entry) => entry.id) }, "Ordre des éléments enregistré");
+  }
   if (item) return <PageItemDetail key={item.updatedAt} item={item} act={act} onBack={onBack} />;
   return <>
     <header className="admin-section-header"><div><h1>Page de liens</h1><p>Les accès utiles affichés sur liens.ae2v.fr.</p></div><a className="secondary-button" href="/" target="_blank">Voir la page<ExternalLink /></a></header>
     <form className="settings-strip" onSubmit={async (event) => { event.preventDefault(); await act({ action: "settings", ...settings }, "Présentation enregistrée"); }}><label>Nom affiché<input value={settings.displayName} onChange={(event) => setSettings({ ...settings, displayName: event.target.value })} /></label><label>Sous-titre<input value={settings.bio} onChange={(event) => setSettings({ ...settings, bio: event.target.value })} /></label><button className="primary-button"><Save />Enregistrer</button></form>
     <SocialNetworksEditor networks={data.networks} act={act} />
     <div className="list-heading"><div><h2>Éléments</h2><span>{data.items.length} au total</span></div><button className="primary-button" onClick={async () => { await act({ action: "createItem" }, "Élément ajouté"); }}><Plus />Ajouter</button></div>
-    <div className="resource-list">{data.items.map((entry, index) => <article key={entry.id} className={!entry.enabled ? "muted" : ""}>
-      <span className="resource-icon"><BrandIcon name={entry.icon} size={21} /></span>
-      <button className="resource-copy" onClick={() => onSelect(entry.id)}><strong>{entry.title}</strong><span>{entry.kind === "discord" ? "Discord" : entry.kind === "countdown" ? "Compte à rebours" : entry.url}</span><small>{entry.clicks ?? 0} engagements · créé le {shortDate(entry.createdAt)}</small></button>
-      <span className={`badge ${entry.enabled ? "green" : ""}`}>{entry.enabled ? "Visible" : "Masqué"}</span>
-      <div className="resource-actions"><button disabled={index === 0} aria-label="Monter" onClick={() => act({ action: "moveItem", id: entry.id, direction: "up" })}><ArrowUp /></button><button disabled={index === data.items.length - 1} aria-label="Descendre" onClick={() => act({ action: "moveItem", id: entry.id, direction: "down" })}><ArrowDown /></button><button aria-label="Modifier et voir les statistiques" onClick={() => onSelect(entry.id)}><BarChart3 /></button></div>
-    </article>)}</div>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void reorder(event)}><SortableContext items={data.items.map((entry) => entry.id)} strategy={verticalListSortingStrategy}><div className="resource-list sortable-resource-list">{data.items.map((entry) => <SortablePageItem key={entry.id} entry={entry} onSelect={() => onSelect(entry.id)} />)}</div></SortableContext></DndContext>
   </>;
+}
+
+function SortablePageItem({ entry, onSelect }: { entry: PageItem; onSelect: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
+  return <article ref={setNodeRef} className={`${!entry.enabled ? "muted " : ""}${isDragging ? "dragging" : ""}`} style={{ transform: CSS.Transform.toString(transform), transition }}>
+    <span className="resource-icon"><BrandIcon name={entry.icon} size={21} /></span>
+    <button className="resource-copy" onClick={onSelect}><strong>{entry.title}</strong><span>{entry.kind === "discord" ? "Discord" : entry.kind === "countdown" ? "Compte à rebours" : entry.url}</span><small>{entry.clicks ?? 0} engagements · créé le {shortDate(entry.createdAt)}</small></button>
+    <span className={`badge ${entry.enabled ? "green" : ""}`}>{entry.enabled ? "Visible" : "Masqué"}</span>
+    <div className="resource-actions"><button className="drag-handle" aria-label={`Réordonner ${entry.title}`} title="Glisser pour réordonner" {...attributes} {...listeners}><GripVertical /></button><button aria-label="Modifier et voir les statistiques" onClick={onSelect}><BarChart3 /></button></div>
+  </article>;
 }
 
 function PageItemDetail({ item: initial, act, onBack }: { item: PageItem; act: AdminAction; onBack: () => void }) {

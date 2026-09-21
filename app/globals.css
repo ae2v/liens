@@ -277,6 +277,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .resource-list { display: grid; gap: 10px; }
 .resource-list article { display: grid; grid-template-columns: 52px minmax(0,1fr) auto auto; align-items: center; gap: 14px; min-height: 92px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .resource-list article.muted { opacity: .58; }
+.resource-list article.dragging { position: relative; z-index: 3; opacity: .82; box-shadow: 0 10px 28px rgba(17,17,17,.12); }
 .resource-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 10px; color: var(--red); background: var(--soft-red); }
 .resource-icon svg { width: 21px; }
 .resource-copy { min-width: 0; display: grid; gap: 3px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
@@ -291,6 +292,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .resource-actions > button:disabled { opacity: .25; }
 .resource-actions svg { width: 17px; }
 .resource-actions .copy-button span { display: none; }
+.resource-actions .drag-handle { cursor: grab; touch-action: none; }
+.resource-actions .drag-handle:active { cursor: grabbing; }
 .qr-resource-list article { grid-template-columns: 86px minmax(0,1fr) auto; }
 .qr-resource-list article > img { width: 86px; height: 86px; }
 
@@ -443,6 +446,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .social-admin-icons button { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: #fff; cursor: pointer; }
 .social-admin-icons button:hover, .social-admin-icons button.active { color: #fff; border-color: var(--red); background: var(--red); }
 .social-admin-icons svg { width: 20px; height: 20px; }
+.sortable-social { position: relative; display: inline-grid; transition: opacity .15s ease, filter .15s ease; }
+.sortable-social.dragging { z-index: 3; opacity: .82; filter: drop-shadow(0 8px 12px rgba(17,17,17,.14)); }
+.social-admin-icons .social-drag-handle { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-color: #d8d8d8; color: #666; cursor: grab; touch-action: none; }
+.social-admin-icons .social-drag-handle:hover { color: var(--red); border-color: var(--red); background: #fff; }
+.social-admin-icons .social-drag-handle:active { cursor: grabbing; }
+.social-admin-icons .social-drag-handle svg { width: 12px; height: 12px; }
 .social-inline-editor { display: grid; grid-template-columns: 46px 110px minmax(180px,1fr) auto auto; align-items: center; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .network-library { margin-top: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .network-library > div:first-child { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

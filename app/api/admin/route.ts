@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   try {
     if (["createQr", "updateQr", "deleteQr"].includes(body.action)) await ensureQrSchema();
-    if (["createShort", "updateShort", "saveSocial", "deleteSocial"].includes(body.action)) await ensureSharingSchema();
+    if (["createShort", "updateShort", "saveSocial", "deleteSocial", "reorderSocials"].includes(body.action)) await ensureSharingSchema();
     switch (body.action) {
       case "settings":
         await sql`UPDATE site_settings SET display_name=${String(body.displayName)}, bio=${String(body.bio)}, updated_at=NOW() WHERE id=1`;
@@ -81,6 +81,14 @@ export async function POST(request: Request) {
       case "deleteSocial":
         await sql`DELETE FROM social_networks WHERE id=${body.id}`;
         break;
+      case "reorderSocials": {
+        const ids: string[] = Array.isArray(body.ids) ? body.ids.map(String) : [];
+        const rows = await sql`SELECT id FROM social_networks WHERE url<>'' ORDER BY sort_order, created_at`;
+        const currentIds = rows.map((row) => String(row.id));
+        if (ids.length !== currentIds.length || ids.some((id) => !currentIds.includes(id))) throw new Error("Ordre des réseaux invalide.");
+        await Promise.all(ids.map((id, position) => sql`UPDATE social_networks SET sort_order=${position * 10}, updated_at=NOW() WHERE id=${id}`));
+        break;
+      }
       case "moveItem": {
         const rows = await sql`SELECT id FROM page_items ORDER BY sort_order, created_at`;
         const ids = rows.map((row) => String(row.id));
@@ -90,6 +98,14 @@ export async function POST(request: Request) {
           [ids[index], ids[other]] = [ids[other], ids[index]];
           await Promise.all(ids.map((id, position) => sql`UPDATE page_items SET sort_order=${position * 10} WHERE id=${id}`));
         }
+        break;
+      }
+      case "reorderItems": {
+        const ids: string[] = Array.isArray(body.ids) ? body.ids.map(String) : [];
+        const rows = await sql`SELECT id FROM page_items ORDER BY sort_order, created_at`;
+        const currentIds = rows.map((row) => String(row.id));
+        if (ids.length !== currentIds.length || ids.some((id) => !currentIds.includes(id))) throw new Error("Ordre des éléments invalide.");
+        await Promise.all(ids.map((id, position) => sql`UPDATE page_items SET sort_order=${position * 10}, updated_at=NOW() WHERE id=${id}`));
         break;
       }
       case "createShort": {
