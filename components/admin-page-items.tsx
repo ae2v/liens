@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, CheckCircle2, ExternalLink, Plus, Save, Trash2, XCircle } from "lucide-react";
 import { BrandIcon, iconNames } from "./brand-icon";
 import { AdminAnalytics } from "./admin-analytics";
-import { AttachedQr } from "./admin-qr";
+import { AttachedQr, type QrAppearance } from "./admin-qr";
 import type { AdminAction, AdminData } from "@/app/admin/admin-dashboard";
 import type { DiscordStats } from "@/lib/discord";
 import type { PageItem } from "@/lib/types";
+import { normalizeUrl } from "@/lib/urls";
+import { discordInvite } from "@/lib/discord";
 import { SocialNetworksEditor } from "./admin-social-networks";
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://liens.ae2v.fr").replace(/\/$/, "");
 const localDate = (value: string | null) => value ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
 const shortDate = (value: string) => new Date(value).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 
@@ -38,6 +39,9 @@ function PageItemDetail({ item: initial, act, onBack }: { item: PageItem; act: A
   const [error, setError] = useState("");
   const [discord, setDiscord] = useState<{ loading: boolean; error: string; stats: DiscordStats | null }>({ loading: false, error: "", stats: null });
   const set = <K extends keyof PageItem>(key: K, value: PageItem[K]) => setItem((current) => ({ ...current, [key]: value }));
+  const qrAppearance: QrAppearance = { foreground: item.qrForeground, background: item.qrBackground, logoEnabled: item.qrLogoEnabled, logoColor: item.qrLogoColor };
+  let qrTarget = initial.url;
+  try { qrTarget = item.kind === "discord" ? discordInvite(item.url).url : normalizeUrl(item.url); } catch { /* keep the last saved real destination while editing an incomplete value */ }
   useEffect(() => {
     if (item.kind !== "discord" || !item.url.trim()) return;
     const controller = new AbortController();
@@ -63,7 +67,7 @@ function PageItemDetail({ item: initial, act, onBack }: { item: PageItem; act: A
       <div className="form-grid two"><label>Publication (facultatif)<input type="datetime-local" value={localDate(item.publishAt)} onChange={(event) => set("publishAt", event.target.value ? new Date(event.target.value).toISOString() : null)} /></label><label>Expiration (facultatif)<input type="datetime-local" value={localDate(item.expiresAt)} onChange={(event) => set("expiresAt", event.target.value ? new Date(event.target.value).toISOString() : null)} /></label></div>
       <div className="toggle-row"><label className="toggle-label"><input type="checkbox" checked={item.enabled} onChange={(event) => set("enabled", event.target.checked)} /><span />Visible</label><label className="toggle-label"><input type="checkbox" checked={item.featured} onChange={(event) => set("featured", event.target.checked)} /><span />Mettre en avant</label></div>
       {error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="danger-button" onClick={() => confirm("Supprimer cet élément ?") && act({ action: "deleteItem", id: item.id }, "Élément supprimé").then(onBack)}><Trash2 />Supprimer</button><button className="primary-button" disabled={saving || (item.kind === "discord" && !discord.stats)}><Save />{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
-    </form><AttachedQr name={item.title} target={`${siteUrl}/api/go/${item.id}`} /></div>
+    </form><AttachedQr name={item.title} target={qrTarget} sourceTarget={qrTarget} appearance={qrAppearance} onAppearanceChange={(appearance) => setItem((current) => ({ ...current, qrForeground: appearance.foreground, qrBackground: appearance.background, qrLogoEnabled: appearance.logoEnabled, qrLogoColor: appearance.logoColor }))} /></div>
     <AdminAnalytics id={item.id} kind="item" />
   </>;
 }

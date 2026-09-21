@@ -13,6 +13,11 @@ const date = (value: string) => new Date(value).toLocaleDateString("fr-FR", { da
 type Overrides = ShortLink["socialOverrides"];
 type FormState = Pick<ShortLink, "destination" | "slug" | "title" | "description" | "imageAlt" | "siteName" | "twitterLargeImage" | "embedColor" | "imageMode" | "expiryMessage" | "disabledMessage" | "enabled" | "qrForeground" | "qrBackground" | "qrLogoEnabled" | "qrLogoColor"> & { imageUrl: string; expiresAt: string; socialOverrides: Overrides };
 const blank: FormState = { destination: "", slug: "", title: "", description: "", imageUrl: "", imageAlt: "", siteName: "", twitterLargeImage: true, embedColor: "#d60106", imageMode: "url", socialOverrides: {}, qrForeground: "#171717", qrBackground: "#ffffff", qrLogoEnabled: true, qrLogoColor: "#d60106", expiresAt: "", expiryMessage: "Ce lien a expiré.", disabledMessage: "Ce lien a été désactivé.", enabled: true };
+function initialSocialOverrides(link: ShortLink): Overrides {
+  const overrides = link.socialOverrides || {};
+  const hasImageOverride = "imageMode" in overrides || "imageUrl" in overrides;
+  return !link.imageUrl && link.imageMode === "url" && !hasImageOverride ? { ...overrides, imageMode: "none", imageUrl: "" } : overrides;
+}
 
 export function ShortLinksManager({ links, act, selected, onSelect, onBack }: { links: ShortLink[]; act: AdminAct; selected: string | null; onSelect: (id: string | null) => void; onBack: () => void }) {
   const [now] = useState(() => Date.now());
@@ -31,7 +36,7 @@ function CopyLink({ url }: { url: string }) {
 }
 
 function ShortEditor({ link, act, onBack }: { link?: ShortLink; act: AdminAct; onBack: () => void }) {
-  const [form, setForm] = useState<FormState>(link ? { ...link, imageUrl: link.imageUrl ?? "", expiresAt: localDate(link.expiresAt), socialOverrides: link.socialOverrides || {} } : blank);
+  const [form, setForm] = useState<FormState>(link ? { ...link, imageUrl: link.imageUrl ?? "", expiresAt: localDate(link.expiresAt), socialOverrides: initialSocialOverrides(link) } : blank);
   const [socialOpen, setSocialOpen] = useState(false); const [metaState, setMetaState] = useState<"idle" | "loading" | "ready" | "empty" | "error">(link ? "ready" : "idle");
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }));
@@ -42,7 +47,7 @@ function ShortEditor({ link, act, onBack }: { link?: ShortLink; act: AdminAct; o
   async function retrieve() {
     let destination = ""; try { destination = normalizeUrl(form.destination); } catch { setMetaState("error"); return; }
     setMetaState("loading");
-    try { const response = await fetch("/api/admin/metadata", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: destination }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error); const metadata = result.metadata as SocialMetadata; setForm((current) => ({ ...current, destination, title: metadata.title || current.title, description: metadata.description || current.description, imageUrl: metadata.imageUrl || current.imageUrl, imageAlt: metadata.imageAlt || current.imageAlt, siteName: metadata.siteName || current.siteName, twitterLargeImage: metadata.twitterLargeImage, embedColor: metadata.embedColor || current.embedColor })); setMetaState(metadata.title || metadata.description || metadata.imageUrl ? "ready" : "empty"); } catch { setMetaState("error"); }
+    try { const response = await fetch("/api/admin/metadata", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: destination }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error); const metadata = result.metadata as SocialMetadata; setForm((current) => { const hasImageOverride = "imageMode" in current.socialOverrides || "imageUrl" in current.socialOverrides; return { ...current, destination, title: metadata.title || current.title, description: metadata.description || current.description, imageUrl: metadata.imageUrl || "", imageAlt: metadata.imageAlt || current.imageAlt, siteName: metadata.siteName || current.siteName, twitterLargeImage: metadata.twitterLargeImage, embedColor: metadata.embedColor || current.embedColor, socialOverrides: !metadata.imageUrl && !hasImageOverride ? { ...current.socialOverrides, imageMode: "none", imageUrl: "" } : current.socialOverrides }; }); setMetaState(metadata.title || metadata.description || metadata.imageUrl ? "ready" : "empty"); } catch { setMetaState("error"); }
   }
   useEffect(() => { if (link || form.destination.trim().length < 4) return; const timer = window.setTimeout(() => void retrieve(), 700); return () => window.clearTimeout(timer); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.destination, link]);

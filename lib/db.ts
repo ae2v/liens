@@ -40,6 +40,10 @@ export function ensureSharingSchema() {
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE`;
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_color TEXT NOT NULL DEFAULT '#d60106'`;
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS disabled_message TEXT NOT NULL DEFAULT 'Ce lien a été désactivé.'`;
+    await sql`ALTER TABLE page_items ADD COLUMN IF NOT EXISTS qr_foreground TEXT NOT NULL DEFAULT '#171717'`;
+    await sql`ALTER TABLE page_items ADD COLUMN IF NOT EXISTS qr_background TEXT NOT NULL DEFAULT '#ffffff'`;
+    await sql`ALTER TABLE page_items ADD COLUMN IF NOT EXISTS qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE`;
+    await sql`ALTER TABLE page_items ADD COLUMN IF NOT EXISTS qr_logo_color TEXT NOT NULL DEFAULT '#d60106'`;
     await sql`CREATE TABLE IF NOT EXISTS social_networks (id UUID PRIMARY KEY, network TEXT NOT NULL UNIQUE, url TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   })().catch((error) => { sharingSchemaPromise = null; throw error; });
   return sharingSchemaPromise;
@@ -71,6 +75,10 @@ function mapItem(row: Record<string, unknown>): PageItem {
     countdownAt: row.countdown_at ? new Date(String(row.countdown_at)).toISOString() : null,
     publishAt: row.publish_at ? new Date(String(row.publish_at)).toISOString() : null,
     expiresAt: row.expires_at ? new Date(String(row.expires_at)).toISOString() : null,
+    qrForeground: String(row.qr_foreground ?? "#171717"),
+    qrBackground: String(row.qr_background ?? "#ffffff"),
+    qrLogoEnabled: row.qr_logo_enabled !== false,
+    qrLogoColor: String(row.qr_logo_color ?? "#d60106"),
     conditions: (row.conditions ?? { mode: "all", rules: [] }) as PageItem["conditions"],
     sortOrder: Number(row.sort_order),
     createdAt: new Date(String(row.created_at)).toISOString(),

@@ -60,7 +60,8 @@ export async function POST(request: Request) {
           const stats = await getDiscordStats(String(body.item.url));
           body.item.url = stats.invite;
         } else body.item.url = normalizeUrl(String(body.item.url));
-        await sql`UPDATE page_items SET kind=${body.item.kind}, title=${body.item.title}, subtitle=${body.item.subtitle ?? ""}, url=${body.item.url}, icon=${body.item.icon}, enabled=${Boolean(body.item.enabled)}, featured=${Boolean(body.item.featured)}, countdown_at=${body.item.countdownAt || null}, publish_at=${body.item.publishAt || null}, expires_at=${body.item.expiresAt || null}, updated_at=NOW() WHERE id=${body.item.id}`;
+        if (!hexColor(body.item.qrForeground) || !backgroundColor(body.item.qrBackground) || !hexColor(body.item.qrLogoColor)) throw new Error("Couleur de QR code invalide.");
+        await sql`UPDATE page_items SET kind=${body.item.kind}, title=${body.item.title}, subtitle=${body.item.subtitle ?? ""}, url=${body.item.url}, icon=${body.item.icon}, enabled=${Boolean(body.item.enabled)}, featured=${Boolean(body.item.featured)}, countdown_at=${body.item.countdownAt || null}, publish_at=${body.item.publishAt || null}, expires_at=${body.item.expiresAt || null}, qr_foreground=${body.item.qrForeground}, qr_background=${body.item.qrBackground}, qr_logo_enabled=${body.item.qrLogoEnabled !== false}, qr_logo_color=${body.item.qrLogoColor}, updated_at=NOW() WHERE id=${body.item.id}`;
         break;
       case "deleteItem":
         await sql`DELETE FROM page_items WHERE id=${body.id}`;

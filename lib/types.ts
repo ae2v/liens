@@ -31,6 +31,10 @@ export type PageItem = {
   countdownAt: string | null;
   publishAt: string | null;
   expiresAt: string | null;
+  qrForeground: string;
+  qrBackground: string;
+  qrLogoEnabled: boolean;
+  qrLogoColor: string;
   conditions: Conditions;
   sortOrder: number;
   createdAt: string;
