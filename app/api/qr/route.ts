@@ -50,11 +50,11 @@ function hiddenModules(matrix: Uint8Array, size: number, circle: CutoutCircle) {
 }
 
 function qrWithBestLogoMask(data: string) {
-  let best = QRCode.create(data, { errorCorrectionLevel: "H", maskPattern: MASK_PATTERNS[0] });
+  let best = QRCode.create(data, { errorCorrectionLevel: "Q", maskPattern: MASK_PATTERNS[0] });
   let bestHidden = hiddenModules(best.modules.data, best.modules.size, cutoutFor(best.modules.size));
 
   for (const maskPattern of MASK_PATTERNS.slice(1)) {
-    const candidate = QRCode.create(data, { errorCorrectionLevel: "H", maskPattern });
+    const candidate = QRCode.create(data, { errorCorrectionLevel: "Q", maskPattern });
     const hidden = hiddenModules(candidate.modules.data, candidate.modules.size, cutoutFor(candidate.modules.size));
     if (hidden < bestHidden) {
       best = candidate;
