@@ -69,6 +69,8 @@ export type QrCodeRecord = {
   foreground: string;
   background: string;
   trackingEnabled: boolean;
+  logoEnabled: boolean;
+  logoColor: string;
   createdAt: string;
   updatedAt: string;
   scans: number;
