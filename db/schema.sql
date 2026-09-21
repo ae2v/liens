@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS short_links (
   qr_logo_color TEXT NOT NULL DEFAULT '#d60106',
   expires_at TIMESTAMPTZ,
   expiry_message TEXT NOT NULL DEFAULT 'Ce lien a expiré.',
+  disabled_message TEXT NOT NULL DEFAULT 'Ce lien a été désactivé.',
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -103,6 +104,7 @@ ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_site TEXT NOT NULL DEFA
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_large_image BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS embed_color TEXT NOT NULL DEFAULT '#d60106';
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS image_mode TEXT NOT NULL DEFAULT 'url';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS disabled_message TEXT NOT NULL DEFAULT 'Ce lien a été désactivé.';
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS social_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_foreground TEXT NOT NULL DEFAULT '#171717';
 ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_background TEXT NOT NULL DEFAULT '#ffffff';

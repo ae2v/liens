@@ -220,8 +220,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 
 .qr-workspace { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 20px; align-items: stretch; }
 .qr-workspace .create-panel { margin: 0; }
-.color-row { display: flex; gap: 16px; }
-.color-row label { grid-template-columns: auto 52px; align-items: center; }
+.color-row { width: 100%; display: grid; grid-template-columns: repeat(auto-fit,minmax(112px,1fr)); gap: 12px; }
+.color-row label { grid-template-columns: minmax(0,1fr) 52px; align-items: center; }
 .color-row input { width: 52px; padding: 4px; }
 .qr-preview { min-height: 390px; display: grid; place-items: center; align-content: center; gap: 10px; padding: 26px; border: 1px dashed #c9cbce; border-radius: 15px; background: #fff; text-align: center; }
 .qr-preview > svg { width: 64px; height: 64px; color: #a9abad; }

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         body.imageUrl = imageValue(body.imageUrl, body.imageMode);
         if (await sql`SELECT id FROM short_links WHERE LOWER(slug)=LOWER(${slug})`.then(rows => rows.length)) throw new Error("Ce slug existe déjà.");
         const id = randomUUID();
-        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, image_alt, site_name, twitter_site, twitter_large_image, embed_color, image_mode, social_overrides, qr_foreground, qr_background, qr_logo_enabled, qr_logo_color, expires_at, expiry_message, enabled) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.imageAlt || ""}, ${body.siteName || ""}, '@AE2V_BDE', ${body.twitterLargeImage !== false}, ${validColor(body.embedColor)}, ${body.imageMode || "url"}, ${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, ${body.qrForeground || '#171717'}, ${body.qrBackground || '#ffffff'}, ${body.qrLogoEnabled !== false}, ${validColor(body.qrLogoColor)}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."}, ${body.enabled !== false})`;
+        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, image_alt, site_name, twitter_site, twitter_large_image, embed_color, image_mode, social_overrides, qr_foreground, qr_background, qr_logo_enabled, qr_logo_color, expires_at, expiry_message, disabled_message, enabled) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.imageAlt || ""}, ${body.siteName || ""}, '@AE2V_BDE', ${body.twitterLargeImage !== false}, ${validColor(body.embedColor)}, ${body.imageMode || "url"}, ${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, ${body.qrForeground || '#171717'}, ${body.qrBackground || '#ffffff'}, ${body.qrLogoEnabled !== false}, ${validColor(body.qrLogoColor)}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."}, ${body.disabledMessage || "Ce lien a été désactivé."}, ${body.enabled !== false})`;
         return NextResponse.json({ ok: true, shortLink: { id, slug } });
       }
       case "updateShort": {
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         const current = await sql`SELECT id FROM short_links WHERE id=${body.id}`;
         if (!current.length) throw new Error("Lien introuvable.");
         if (!hexColor(body.qrForeground) || !backgroundColor(body.qrBackground) || !hexColor(body.qrLogoColor)) throw new Error("Couleur de QR code invalide.");
-        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site='@AE2V_BDE', twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, social_overrides=${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, qr_foreground=${body.qrForeground}, qr_background=${body.qrBackground}, qr_logo_enabled=${body.qrLogoEnabled !== false}, qr_logo_color=${body.qrLogoColor}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
+        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site='@AE2V_BDE', twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, social_overrides=${JSON.stringify(safeSocialOverrides(body.socialOverrides))}::jsonb, qr_foreground=${body.qrForeground}, qr_background=${body.qrBackground}, qr_logo_enabled=${body.qrLogoEnabled !== false}, qr_logo_color=${body.qrLogoColor}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, disabled_message=${String(body.disabledMessage || 'Ce lien a été désactivé.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       case "toggleShort":
@@ -188,7 +188,7 @@ function safeSocialOverrides(value: unknown) {
   for (const key of ["title", "description", "imageAlt", "siteName"] as const) if (key in source) result[key] = String(source[key] ?? "").slice(0, key === "description" ? 240 : 120);
   if ("twitterLargeImage" in source) result.twitterLargeImage = Boolean(source.twitterLargeImage);
   if ("embedColor" in source) result.embedColor = validColor(source.embedColor);
-  if ("imageMode" in source && ["url", "upload", "generated"].includes(String(source.imageMode))) result.imageMode = String(source.imageMode);
+  if ("imageMode" in source && ["url", "upload", "generated", "none"].includes(String(source.imageMode))) result.imageMode = String(source.imageMode);
   if ("imageUrl" in source) result.imageUrl = imageValue(source.imageUrl, source.imageMode || "url");
   return result;
 }

@@ -39,6 +39,7 @@ export function ensureSharingSchema() {
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_background TEXT NOT NULL DEFAULT '#ffffff'`;
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_enabled BOOLEAN NOT NULL DEFAULT TRUE`;
     await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS qr_logo_color TEXT NOT NULL DEFAULT '#d60106'`;
+    await sql`ALTER TABLE short_links ADD COLUMN IF NOT EXISTS disabled_message TEXT NOT NULL DEFAULT 'Ce lien a été désactivé.'`;
     await sql`CREATE TABLE IF NOT EXISTS social_networks (id UUID PRIMARY KEY, network TEXT NOT NULL UNIQUE, url TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   })().catch((error) => { sharingSchemaPromise = null; throw error; });
   return sharingSchemaPromise;
@@ -99,6 +100,7 @@ function mapShortLink(row: Record<string, unknown>): ShortLink {
     qrLogoColor: String(row.qr_logo_color ?? "#d60106"),
     expiresAt: row.expires_at ? new Date(String(row.expires_at)).toISOString() : null,
     expiryMessage: String(row.expiry_message),
+    disabledMessage: String(row.disabled_message ?? "Ce lien a été désactivé."),
     enabled: Boolean(row.enabled),
     createdAt: new Date(String(row.created_at)).toISOString(),
     updatedAt: new Date(String(row.updated_at)).toISOString(),
