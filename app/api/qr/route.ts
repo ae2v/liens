@@ -5,7 +5,7 @@ import { join } from "node:path";
 import sharp from "sharp";
 
 type Rect = { x: number; y: number; width: number; height: number };
-type Cutout = { x: number; y: number; width: number; height: number };
+type CutoutCircle = { cx: number; cy: number; radius: number };
 
 const MASK_PATTERNS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
@@ -27,17 +27,23 @@ function extractLastTopLevelGroup(source: string) {
   return groups.at(-1) ?? "";
 }
 
-function cutoutFor(size: number): Cutout {
-  const width = Math.min(9, size - 16);
-  const height = Math.min(7, size - 18);
-  return { x: Math.floor((size - width) / 2), y: Math.floor((size - height) / 2), width, height };
+function cutoutFor(size: number): CutoutCircle {
+  return { cx: size / 2, cy: size / 2, radius: Math.min(4.5, Math.max(3, (size - 17) / 2)) };
 }
 
-function hiddenModules(matrix: Uint8Array, size: number, cutout: Cutout) {
+function moduleTouchesCircle(x: number, y: number, circle: CutoutCircle) {
+  const nearestX = Math.max(x, Math.min(circle.cx, x + 1));
+  const nearestY = Math.max(y, Math.min(circle.cy, y + 1));
+  const dx = nearestX - circle.cx;
+  const dy = nearestY - circle.cy;
+  return dx * dx + dy * dy <= circle.radius * circle.radius;
+}
+
+function hiddenModules(matrix: Uint8Array, size: number, circle: CutoutCircle) {
   let count = 0;
-  for (let y = cutout.y; y < cutout.y + cutout.height; y += 1) {
-    for (let x = cutout.x; x < cutout.x + cutout.width; x += 1) {
-      if (matrix[y * size + x]) count += 1;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (matrix[y * size + x] && moduleTouchesCircle(x, y, circle)) count += 1;
     }
   }
   return count;
@@ -58,20 +64,15 @@ function qrWithBestLogoMask(data: string) {
   return best;
 }
 
-function mergedRects(matrix: Uint8Array, size: number, cutout: Cutout) {
+function mergedRects(matrix: Uint8Array, size: number, circle: CutoutCircle) {
   const complete: Rect[] = [];
   let active = new Map<string, Rect>();
   for (let y = 0; y < size; y += 1) {
     const runs: Array<{ x: number; width: number }> = [];
     for (let x = 0; x < size;) {
-      const hidden = x >= cutout.x && x < cutout.x + cutout.width && y >= cutout.y && y < cutout.y + cutout.height;
-      if (!matrix[y * size + x] || hidden) { x += 1; continue; }
+      if (!matrix[y * size + x] || moduleTouchesCircle(x, y, circle)) { x += 1; continue; }
       const start = x;
-      while (x < size) {
-        const inCutout = x >= cutout.x && x < cutout.x + cutout.width && y >= cutout.y && y < cutout.y + cutout.height;
-        if (!matrix[y * size + x] || inCutout) break;
-        x += 1;
-      }
+      while (x < size && matrix[y * size + x] && !moduleTouchesCircle(x, y, circle)) x += 1;
       runs.push({ x: start, width: x - start });
     }
     const next = new Map<string, Rect>();
@@ -91,10 +92,10 @@ async function buildQrSvg(data: string, dark: string, light: string, moduleSize:
   const qr = qrWithBestLogoMask(data);
   const size = qr.modules.size;
   const quiet = 4;
-  const cutout = cutoutFor(size);
+  const circle = cutoutFor(size);
   const totalModules = size + quiet * 2;
   const pixelSize = totalModules * moduleSize;
-  const path = mergedRects(qr.modules.data, size, cutout).map((rect) => {
+  const path = mergedRects(qr.modules.data, size, circle).map((rect) => {
     const x = (rect.x + quiet) * moduleSize;
     const y = (rect.y + quiet) * moduleSize;
     return `M${x} ${y}h${rect.width * moduleSize}v${rect.height * moduleSize}h-${rect.width * moduleSize}z`;
@@ -102,13 +103,15 @@ async function buildQrSvg(data: string, dark: string, light: string, moduleSize:
 
   const source = await readFile(join(process.cwd(), "public", "assets", "logo-ae2v.svg"), "utf8");
   const lionBody = extractLastTopLevelGroup(source).replaceAll('class="cls-1"', 'fill="#d60106"');
-  const logoWidth = cutout.width * moduleSize;
-  const logoHeight = cutout.height * moduleSize;
-  const logoX = (quiet + cutout.x) * moduleSize;
-  const logoY = (quiet + cutout.y) * moduleSize;
-  const scale = Math.min(logoWidth / 350, logoHeight / 272.35) * 0.9;
-  const tx = logoX + (logoWidth - 350 * scale) / 2;
-  const ty = logoY + (logoHeight - 272.35 * scale) / 2;
+  const circleDiameter = circle.radius * 2 * moduleSize;
+  const logoBox = circleDiameter * 0.78;
+  const scale = Math.min(logoBox / 350, logoBox / 272.35);
+  const logoWidth = 350 * scale;
+  const logoHeight = 272.35 * scale;
+  const centerX = (quiet + circle.cx) * moduleSize;
+  const centerY = (quiet + circle.cy) * moduleSize;
+  const tx = centerX - logoWidth / 2;
+  const ty = centerY - logoHeight / 2;
   const background = light === "transparent" ? "" : `<rect width="100%" height="100%" fill="${light}"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" viewBox="0 0 ${pixelSize} ${pixelSize}">${background}<path d="${path}" fill="${dark}" shape-rendering="crispEdges"/><g transform="translate(${tx} ${ty}) scale(${scale}) translate(-650 0)">${lionBody}</g></svg>`;
 }
