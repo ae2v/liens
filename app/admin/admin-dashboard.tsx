@@ -48,7 +48,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     <section className="admin-main">
       {notice && <div className="admin-notice" role="status">{notice}</div>}
       {tab === "page" && <PageItemsManager data={data} act={act} />}
-      {tab === "short" && <ShortLinksManager links={data.shortLinks} act={act} />}
+      {tab === "short" && <ShortLinksManager links={data.shortLinks} records={data.qrCodes} act={act} />}
       {tab === "qr" && <QrCodesManager records={data.qrCodes} act={act} />}
     </section>
   </main>;
