@@ -68,6 +68,7 @@ export type QrCodeRecord = {
   shortLinkId: string | null;
   foreground: string;
   background: string;
+  trackingEnabled: boolean;
   createdAt: string;
   updatedAt: string;
   scans: number;
