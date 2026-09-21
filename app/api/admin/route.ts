@@ -111,7 +111,10 @@ export async function POST(request: Request) {
         if (!hexColor(foreground) || !backgroundColor(background)) throw new Error("Couleur invalide.");
         const trackingEnabled = Boolean(body.trackingEnabled) && !body.shortLinkId;
         const trackingKey = trackingEnabled ? await uniqueTrackingKey(sql) : null;
-        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background, tracking_enabled, tracking_key) VALUES (${id}, ${String(body.name || "").trim()}, ${target}, ${body.shortLinkId || null}, ${foreground}, ${background}, ${trackingEnabled}, ${trackingKey})`;
+        const logoEnabled = body.logoEnabled !== false;
+        const logoColor = body.logoColor || "#d60106";
+        if (!hexColor(logoColor)) throw new Error("Couleur du logo invalide.");
+        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background, tracking_enabled, tracking_key, logo_enabled, logo_color) VALUES (${id}, ${String(body.name || "").trim()}, ${target}, ${body.shortLinkId || null}, ${foreground}, ${background}, ${trackingEnabled}, ${trackingKey}, ${logoEnabled}, ${logoColor})`;
         return NextResponse.json({ ok: true, qrCode: { id } });
       }
       case "updateQr": {
@@ -121,7 +124,10 @@ export async function POST(request: Request) {
         const current = await sql`SELECT tracking_key FROM qr_codes WHERE id=${body.id}`;
         if (!current.length) throw new Error("QR code introuvable.");
         const trackingKey = trackingEnabled && !current[0].tracking_key ? await uniqueTrackingKey(sql) : current[0].tracking_key;
-        await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, tracking_enabled=${trackingEnabled}, tracking_key=${trackingKey}, updated_at=NOW() WHERE id=${body.id}`;
+        const logoEnabled = body.logoEnabled !== false;
+        const logoColor = body.logoColor || "#d60106";
+        if (!hexColor(logoColor)) throw new Error("Couleur du logo invalide.");
+        await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, tracking_enabled=${trackingEnabled}, tracking_key=${trackingKey}, logo_enabled=${logoEnabled}, logo_color=${logoColor}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       case "deleteQr":
