@@ -163,7 +163,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .toggle-label input:focus-visible + span { outline: 3px solid rgba(214,1,6,.25); outline-offset: 2px; }
 .toggle-row { display: flex; gap: 26px; }
 
-.list-heading { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 14px; }
+.list-heading { display: flex; align-items: center; justify-content: space-between; margin: 32px auto 14px; }
 .list-heading .primary-button { margin-left: auto; }
 .list-heading h2 { margin: 0 0 3px; font-size: 1.15rem; }
 .list-heading span { color: var(--muted); font-size: .75rem; }
