@@ -17,7 +17,7 @@ export function PageItemsManager({ data, act }: { data: AdminData; act: AdminAct
   const [selected, setSelected] = useState<string | null>(null);
   const [settings, setSettings] = useState(data.settings);
   const item = data.items.find((entry) => entry.id === selected);
-  if (item) return <PageItemDetail key={item.updatedAt} item={item} records={data.qrCodes} act={act} onBack={() => setSelected(null)} />;
+  if (item) return <PageItemDetail key={item.updatedAt} item={item} act={act} onBack={() => setSelected(null)} />;
   return <>
     <header className="admin-section-header"><div><h1>Page de liens</h1><p>Les accès utiles affichés sur liens.ae2v.fr.</p></div><a className="secondary-button" href="/" target="_blank">Voir la page<ExternalLink /></a></header>
     <form className="settings-strip" onSubmit={async (event) => { event.preventDefault(); await act({ action: "settings", ...settings }, "Présentation enregistrée"); }}><label>Nom affiché<input value={settings.displayName} onChange={(event) => setSettings({ ...settings, displayName: event.target.value })} /></label><label>Sous-titre<input value={settings.bio} onChange={(event) => setSettings({ ...settings, bio: event.target.value })} /></label><button className="primary-button"><Save />Enregistrer</button></form>
@@ -31,7 +31,7 @@ export function PageItemsManager({ data, act }: { data: AdminData; act: AdminAct
   </>;
 }
 
-function PageItemDetail({ item: initial, records, act, onBack }: { item: PageItem; records: AdminData["qrCodes"]; act: AdminAction; onBack: () => void }) {
+function PageItemDetail({ item: initial, act, onBack }: { item: PageItem; act: AdminAction; onBack: () => void }) {
   const [item, setItem] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -62,7 +62,7 @@ function PageItemDetail({ item: initial, records, act, onBack }: { item: PageIte
       <div className="form-grid two"><label>Publication (facultatif)<input type="datetime-local" value={localDate(item.publishAt)} onChange={(event) => set("publishAt", event.target.value ? new Date(event.target.value).toISOString() : null)} /></label><label>Expiration (facultatif)<input type="datetime-local" value={localDate(item.expiresAt)} onChange={(event) => set("expiresAt", event.target.value ? new Date(event.target.value).toISOString() : null)} /></label></div>
       <div className="toggle-row"><label className="toggle-label"><input type="checkbox" checked={item.enabled} onChange={(event) => set("enabled", event.target.checked)} /><span />Visible</label><label className="toggle-label"><input type="checkbox" checked={item.featured} onChange={(event) => set("featured", event.target.checked)} /><span />Mettre en avant</label></div>
       {error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="danger-button" onClick={() => confirm("Supprimer cet élément ?") && act({ action: "deleteItem", id: item.id }, "Élément supprimé").then(onBack)}><Trash2 />Supprimer</button><button className="primary-button" disabled={saving || (item.kind === "discord" && !discord.stats)}><Save />{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
-    </form><AttachedQr name={item.title} target={`${siteUrl}/api/go/${item.id}`} records={records} act={act} /></div>
+    </form><AttachedQr name={item.title} target={`${siteUrl}/api/go/${item.id}`} /></div>
     <AdminAnalytics id={item.id} kind="item" />
   </>;
 }

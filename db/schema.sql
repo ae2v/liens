@@ -99,6 +99,9 @@ ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_tracking_key_idx ON qr_codes(tracking_key) WHERE tracking_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS click_events_qr_code_idx ON click_events(qr_code_id, occurred_at DESC);
 
+DELETE FROM click_events WHERE qr_code_id IN (SELECT id FROM qr_codes WHERE short_link_id IS NOT NULL);
+DELETE FROM qr_codes WHERE short_link_id IS NOT NULL;
+
 INSERT INTO site_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 UPDATE site_settings SET logo_path = '/assets/logo-ae2v.svg' WHERE logo_path IN ('/assets/favicon.ico', '/assets/avatar.svg');
 
