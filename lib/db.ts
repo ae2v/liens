@@ -16,6 +16,8 @@ export function ensureQrSchema() {
       const sql = sqlClient();
       await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN`;
       await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_key TEXT`;
+      await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS logo_enabled BOOLEAN NOT NULL DEFAULT TRUE`;
+      await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS logo_color TEXT NOT NULL DEFAULT '#d60106'`;
       await sql`UPDATE qr_codes SET tracking_enabled = TRUE WHERE tracking_enabled IS NULL`;
       await sql`ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET DEFAULT FALSE`;
       await sql`ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET NOT NULL`;
@@ -122,6 +124,8 @@ export async function getAdminData() {
       shortLinkId: row.short_link_id ? String(row.short_link_id) : null,
       foreground: String(row.foreground), background: String(row.background),
       trackingEnabled: Boolean(row.tracking_enabled),
+      logoEnabled: row.logo_enabled !== false,
+      logoColor: String(row.logo_color ?? "#d60106"),
       createdAt: new Date(String(row.created_at)).toISOString(), updatedAt: new Date(String(row.updated_at)).toISOString(),
       scans: Number(row.scans ?? 0),
       trackingUrl: Boolean(row.tracking_enabled)
