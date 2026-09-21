@@ -91,12 +91,8 @@ export async function POST(request: Request) {
         const image = imageValue(body.imageUrl, body.imageMode);
         const conflict = await sql`SELECT id FROM short_links WHERE LOWER(slug)=LOWER(${slug}) AND id<>${body.id}`;
         if (conflict.length) throw new Error("Ce slug existe déjà.");
-        const current = await sql`SELECT slug FROM short_links WHERE id=${body.id}`;
+        const current = await sql`SELECT id FROM short_links WHERE id=${body.id}`;
         if (!current.length) throw new Error("Lien introuvable.");
-        if (current[0].slug !== slug) {
-          const qr = await sql`SELECT id FROM qr_codes WHERE short_link_id=${body.id} LIMIT 1`;
-          if (qr.length) throw new Error("Ce lien possède un QR code : conserve son slug pour que les codes déjà partagés fonctionnent.");
-        }
         await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site=${String(body.twitterSite || '')}, twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
