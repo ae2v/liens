@@ -29,6 +29,8 @@ export type PageItem = {
   featuredStartAt: string | null;
   featuredEndAt: string | null;
   countdownAt: string | null;
+  publishAt: string | null;
+  expiresAt: string | null;
   conditions: Conditions;
   sortOrder: number;
   createdAt: string;
@@ -43,6 +45,12 @@ export type ShortLink = {
   title: string;
   description: string;
   imageUrl: string | null;
+  imageAlt: string;
+  siteName: string;
+  twitterSite: string;
+  twitterLargeImage: boolean;
+  embedColor: string;
+  imageMode: "url" | "upload" | "generated";
   expiresAt: string | null;
   expiryMessage: string;
   enabled: boolean;
@@ -61,4 +69,18 @@ export type QrCodeRecord = {
   foreground: string;
   background: string;
   createdAt: string;
+  updatedAt: string;
+  scans: number;
+  trackingUrl: string;
+};
+
+export type SocialMetadata = {
+  title: string;
+  description: string;
+  imageUrl: string;
+  imageAlt: string;
+  siteName: string;
+  twitterSite: string;
+  twitterLargeImage: boolean;
+  embedColor: string;
 };

@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import UAParser from "ua-parser-js";
 import type { PageItem, QrCodeRecord, ShortLink, SiteSettings } from "./types";
 
 function sqlClient() {
@@ -31,6 +32,8 @@ function mapItem(row: Record<string, unknown>): PageItem {
     featuredStartAt: row.featured_start_at ? new Date(String(row.featured_start_at)).toISOString() : null,
     featuredEndAt: row.featured_end_at ? new Date(String(row.featured_end_at)).toISOString() : null,
     countdownAt: row.countdown_at ? new Date(String(row.countdown_at)).toISOString() : null,
+    publishAt: row.publish_at ? new Date(String(row.publish_at)).toISOString() : null,
+    expiresAt: row.expires_at ? new Date(String(row.expires_at)).toISOString() : null,
     conditions: (row.conditions ?? { mode: "all", rules: [] }) as PageItem["conditions"],
     sortOrder: Number(row.sort_order),
     createdAt: new Date(String(row.created_at)).toISOString(),
@@ -47,6 +50,12 @@ function mapShortLink(row: Record<string, unknown>): ShortLink {
     title: String(row.title),
     description: String(row.description ?? ""),
     imageUrl: row.image_url ? String(row.image_url) : null,
+    imageAlt: String(row.image_alt ?? ""),
+    siteName: String(row.site_name ?? ""),
+    twitterSite: String(row.twitter_site ?? ""),
+    twitterLargeImage: Boolean(row.twitter_large_image),
+    embedColor: String(row.embed_color ?? "#d60106"),
+    imageMode: (row.image_mode ?? "url") as ShortLink["imageMode"],
     expiresAt: row.expires_at ? new Date(String(row.expires_at)).toISOString() : null,
     expiryMessage: String(row.expiry_message),
     enabled: Boolean(row.enabled),
@@ -78,7 +87,7 @@ export async function getAdminData() {
     sql`SELECT * FROM site_settings WHERE id = 1`,
     sql`SELECT p.*, COUNT(c.id)::int AS clicks FROM page_items p LEFT JOIN click_events c ON c.page_item_id = p.id GROUP BY p.id ORDER BY p.sort_order, p.created_at`,
     sql`SELECT s.*, COUNT(c.id)::int AS clicks, COUNT(c.id) FILTER (WHERE c.occurred_at >= NOW() - INTERVAL '7 days')::int AS clicks_this_week, MAX(c.occurred_at) AS last_click_at FROM short_links s LEFT JOIN click_events c ON c.short_link_id = s.id GROUP BY s.id ORDER BY s.created_at DESC`,
-    sql`SELECT * FROM qr_codes ORDER BY created_at DESC`,
+    sql`SELECT q.*, COUNT(c.id)::int AS scans FROM qr_codes q LEFT JOIN click_events c ON c.qr_code_id=q.id GROUP BY q.id ORDER BY q.created_at DESC`,
     sql`SELECT COUNT(*)::int AS clicks, COUNT(*) FILTER (WHERE occurred_at >= NOW() - INTERVAL '7 days')::int AS week FROM click_events`,
   ]);
   return {
@@ -89,7 +98,8 @@ export async function getAdminData() {
       id: String(row.id), name: String(row.name), targetUrl: String(row.target_url),
       shortLinkId: row.short_link_id ? String(row.short_link_id) : null,
       foreground: String(row.foreground), background: String(row.background),
-      createdAt: new Date(String(row.created_at)).toISOString(),
+      createdAt: new Date(String(row.created_at)).toISOString(), updatedAt: new Date(String(row.updated_at)).toISOString(),
+      scans: Number(row.scans ?? 0), trackingUrl: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/q/${row.id}`,
     })),
     totals: { clicks: Number(totals[0].clicks), week: Number(totals[0].week) },
   };
@@ -108,19 +118,21 @@ export async function getShortLink(slug: string) {
 }
 
 export async function recordShortClick(linkId: string, request: Request) {
-  if (isBot(request)) return;
-  const sql = sqlClient();
-  const ua = request.headers.get("user-agent") ?? "";
-  const device = /tablet|ipad/i.test(ua) ? "tablet" : /mobile|android|iphone/i.test(ua) ? "mobile" : "desktop";
-  await sql`INSERT INTO click_events (short_link_id, referrer, country, device) VALUES (${linkId}, ${request.headers.get("referer")}, ${request.headers.get("x-vercel-ip-country")}, ${device})`;
+  await recordClick("short_link_id", linkId, request);
 }
 
 export async function recordItemClick(itemId: string, request: Request) {
-  if (isBot(request)) return;
+  await recordClick("page_item_id", itemId, request);
+}
+
+export async function getQrCode(id: string) {
   const sql = sqlClient();
-  const ua = request.headers.get("user-agent") ?? "";
-  const device = /tablet|ipad/i.test(ua) ? "tablet" : /mobile|android|iphone/i.test(ua) ? "mobile" : "desktop";
-  await sql`INSERT INTO click_events (page_item_id, referrer, country, device) VALUES (${itemId}, ${request.headers.get("referer")}, ${request.headers.get("x-vercel-ip-country")}, ${device})`;
+  const rows = await sql`SELECT * FROM qr_codes WHERE id=${id}`;
+  return rows[0] ?? null;
+}
+
+export async function recordQrScan(id: string, request: Request) {
+  await recordClick("qr_code_id", id, request);
 }
 
 export { sqlClient };
@@ -129,15 +141,31 @@ function isBot(request: Request) {
   return /bot|crawler|spider|facebookexternalhit|preview/i.test(request.headers.get("user-agent") ?? "") || request.headers.get("purpose") === "prefetch";
 }
 
-export async function getAnalytics(kind: "item" | "short", id: string, days: number) {
+async function recordClick(column: "short_link_id" | "page_item_id" | "qr_code_id", id: string, request: Request) {
+  if (isBot(request)) return;
+  const parsed = new UAParser(request.headers.get("user-agent") ?? "").getResult();
+  const device = parsed.device.type === "tablet" ? "tablet" : parsed.device.type === "mobile" ? "mobile" : "desktop";
+  const cityHeader = request.headers.get("x-vercel-ip-city");
+  let city = cityHeader;
+  try { city = cityHeader ? decodeURIComponent(cityHeader) : null; } catch { /* keep the raw Vercel value */ }
   const sql = sqlClient();
-  const column = kind === "item" ? "page_item_id" : "short_link_id";
+  await sql.query(`INSERT INTO click_events (${column}, referrer, country, city, device, browser, os) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [
+    id, request.headers.get("referer"), request.headers.get("x-vercel-ip-country"), city, device,
+    parsed.browser.name || "Inconnu", parsed.os.name || "Inconnu",
+  ]);
+}
+
+export async function getAnalytics(kind: "item" | "short" | "qr", id: string, start: string, end: string) {
+  const sql = sqlClient();
+  const column = kind === "item" ? "page_item_id" : kind === "short" ? "short_link_id" : "qr_code_id";
   const rows = await sql.query(`SELECT (occurred_at AT TIME ZONE 'Europe/Paris')::date::text AS day,
-    COALESCE(device, 'unknown') AS device, COALESCE(country, 'Inconnu') AS country,
+    COALESCE(device, 'unknown') AS device, COALESCE(country, 'Inconnu') AS country, COALESCE(city, 'Inconnue') AS city,
+    COALESCE(browser, 'Inconnu') AS browser, COALESCE(os, 'Inconnu') AS os,
     COALESCE(NULLIF(substring(referrer from '^https?://([^/]+)'), ''), 'Direct / inconnu') AS referrer,
     COUNT(*)::int AS clicks FROM click_events WHERE ${column} = $1
-    AND occurred_at >= (((NOW() AT TIME ZONE 'Europe/Paris')::date - ($2::int - 1))::timestamp AT TIME ZONE 'Europe/Paris')
-    GROUP BY 1, 2, 3, 4 ORDER BY 1`, [id, days]);
+    AND occurred_at >= ($2::date::timestamp AT TIME ZONE 'Europe/Paris')
+    AND occurred_at < (($3::date + 1)::timestamp AT TIME ZONE 'Europe/Paris')
+    GROUP BY 1, 2, 3, 4, 5, 6, 7 ORDER BY 1`, [id, start, end]);
   const totals = await sql.query(`SELECT COUNT(*)::int AS total, MAX(occurred_at) AS last FROM click_events WHERE ${column} = $1`, [id]);
   const sum = (key: string) => {
     const result = new Map<string, number>();
@@ -145,12 +173,14 @@ export async function getAnalytics(kind: "item" | "short", id: string, days: num
     return [...result].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   };
   const daily = new Map(sum("day").map((row) => [row.label, row.value]));
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  const days = Math.min(366, Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1));
   const timeline = Array.from({ length: days }, (_, index) => {
-    const date = new Date(`${today}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - days + index + 1);
+    const date = new Date(startDate); date.setUTCDate(startDate.getUTCDate() + index);
     const label = date.toISOString().slice(0, 10);
     return { label, value: daily.get(label) ?? 0 };
   });
   return { total: Number(totals[0].total), period: timeline.reduce((total, point) => total + point.value, 0), lastClickAt: totals[0].last,
-    timeline, devices: sum("device"), countries: sum("country"), referrers: sum("referrer") };
+    timeline, devices: sum("device"), countries: sum("country"), cities: sum("city"), browsers: sum("browser"), systems: sum("os"), referrers: sum("referrer") };
 }

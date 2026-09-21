@@ -43,8 +43,11 @@ export async function POST(request: Request) {
         break;
       }
       case "updateItem":
-        body.item.url = normalizeUrl(String(body.item.url));
-        await sql`UPDATE page_items SET kind=${body.item.kind}, title=${body.item.title}, subtitle=${body.item.subtitle ?? ""}, url=${body.item.url}, icon=${body.item.icon}, enabled=${Boolean(body.item.enabled)}, featured=${Boolean(body.item.featured)}, featured_start_at=${body.item.featuredStartAt || null}, featured_end_at=${body.item.featuredEndAt || null}, countdown_at=${body.item.countdownAt || null}, conditions=${JSON.stringify(body.item.conditions)}::jsonb, updated_at=NOW() WHERE id=${body.item.id}`;
+        if (body.item.kind === "discord") {
+          const stats = await getDiscordStats(String(body.item.url));
+          body.item.url = stats.invite;
+        } else body.item.url = normalizeUrl(String(body.item.url));
+        await sql`UPDATE page_items SET kind=${body.item.kind}, title=${body.item.title}, subtitle=${body.item.subtitle ?? ""}, url=${body.item.url}, icon=${body.item.icon}, enabled=${Boolean(body.item.enabled)}, featured=${Boolean(body.item.featured)}, countdown_at=${body.item.countdownAt || null}, publish_at=${body.item.publishAt || null}, expires_at=${body.item.expiresAt || null}, updated_at=NOW() WHERE id=${body.item.id}`;
         break;
       case "deleteItem":
         await sql`DELETE FROM page_items WHERE id=${body.id}`;
@@ -64,17 +67,17 @@ export async function POST(request: Request) {
         const slug = String(body.slug || randomSlug());
         if (!slugOk(slug)) throw new Error("Slug invalide ou réservé.");
         body.destination = normalizeUrl(String(body.destination));
-        body.imageUrl = body.imageUrl ? normalizeUrl(String(body.imageUrl), false) : null;
+        body.imageUrl = imageValue(body.imageUrl, body.imageMode);
         if (await sql`SELECT id FROM short_links WHERE LOWER(slug)=LOWER(${slug})`.then(rows => rows.length)) throw new Error("Ce slug existe déjà.");
         const id = randomUUID();
-        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, expires_at, expiry_message) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."})`;
+        await sql`INSERT INTO short_links (id, slug, destination, title, description, image_url, image_alt, site_name, twitter_site, twitter_large_image, embed_color, image_mode, expires_at, expiry_message) VALUES (${id}, ${slug}, ${body.destination}, ${body.title || slug}, ${body.description || ""}, ${body.imageUrl || null}, ${body.imageAlt || ""}, ${body.siteName || ""}, ${body.twitterSite || ""}, ${body.twitterLargeImage !== false}, ${validColor(body.embedColor)}, ${body.imageMode || "url"}, ${body.expiresAt || null}, ${body.expiryMessage || "Ce lien a expiré."})`;
         return NextResponse.json({ ok: true, shortLink: { id, slug } });
       }
       case "updateShort": {
         const slug = String(body.slug);
         if (!slugOk(slug)) throw new Error("Slug invalide ou réservé.");
         const destination = normalizeUrl(String(body.destination));
-        const image = body.imageUrl ? normalizeUrl(String(body.imageUrl), false) : null;
+        const image = imageValue(body.imageUrl, body.imageMode);
         const conflict = await sql`SELECT id FROM short_links WHERE LOWER(slug)=LOWER(${slug}) AND id<>${body.id}`;
         if (conflict.length) throw new Error("Ce slug existe déjà.");
         const current = await sql`SELECT slug FROM short_links WHERE id=${body.id}`;
@@ -83,7 +86,7 @@ export async function POST(request: Request) {
           const qr = await sql`SELECT id FROM qr_codes WHERE short_link_id=${body.id} LIMIT 1`;
           if (qr.length) throw new Error("Ce lien possède un QR code : conserve son slug pour que les codes déjà partagés fonctionnent.");
         }
-        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
+        await sql`UPDATE short_links SET slug=${slug}, destination=${destination}, title=${String(body.title || slug)}, description=${String(body.description || '')}, image_url=${image}, image_alt=${String(body.imageAlt || '')}, site_name=${String(body.siteName || '')}, twitter_site=${String(body.twitterSite || '')}, twitter_large_image=${body.twitterLargeImage !== false}, embed_color=${validColor(body.embedColor)}, image_mode=${body.imageMode || 'url'}, expires_at=${body.expiresAt || null}, expiry_message=${String(body.expiryMessage || 'Ce lien a expiré.')}, enabled=${Boolean(body.enabled)}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       case "toggleShort":
@@ -102,6 +105,12 @@ export async function POST(request: Request) {
           body.targetUrl = `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/${rows[0].slug}`;
         }
         await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background) VALUES (${id}, ${body.name || "QR sans titre"}, ${body.targetUrl}, ${body.shortLinkId || null}, ${body.foreground || "#171717"}, ${body.background || "#ffffff"})`;
+        return NextResponse.json({ ok: true, qrCode: { id } });
+      }
+      case "updateQr": {
+        const target = normalizeUrl(String(body.targetUrl));
+        if (!/^#[0-9a-f]{6}$/i.test(body.foreground) || !/^#[0-9a-f]{6}$/i.test(body.background)) throw new Error("Couleur invalide.");
+        await sql`UPDATE qr_codes SET name=${String(body.name || "QR sans titre")}, target_url=${target}, foreground=${body.foreground}, background=${body.background}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       default:
@@ -112,4 +121,18 @@ export async function POST(request: Request) {
     const message = error instanceof Error && error.message.includes("unique") ? "Ce slug existe déjà." : error instanceof Error ? error.message : "Erreur inconnue";
     return NextResponse.json({ error: message }, { status: 400 });
   }
+}
+
+function validColor(value: unknown) {
+  return /^#[0-9a-f]{6}$/i.test(String(value ?? "")) ? String(value) : "#d60106";
+}
+
+function imageValue(value: unknown, mode: unknown) {
+  if (!value || mode === "generated") return null;
+  const image = String(value);
+  if (mode === "upload") {
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 2_800_000) throw new Error("Image importée invalide ou supérieure à 2 Mo.");
+    return image;
+  }
+  return normalizeUrl(image, false);
 }

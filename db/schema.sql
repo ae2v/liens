@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS page_items (
   featured_start_at TIMESTAMPTZ,
   featured_end_at TIMESTAMPTZ,
   countdown_at TIMESTAMPTZ,
+  publish_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
   conditions JSONB NOT NULL DEFAULT '{"mode":"all","rules":[]}'::jsonb,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -33,6 +35,12 @@ CREATE TABLE IF NOT EXISTS short_links (
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  site_name TEXT NOT NULL DEFAULT '',
+  twitter_site TEXT NOT NULL DEFAULT '',
+  twitter_large_image BOOLEAN NOT NULL DEFAULT TRUE,
+  embed_color TEXT NOT NULL DEFAULT '#d60106',
+  image_mode TEXT NOT NULL DEFAULT 'url' CHECK (image_mode IN ('url', 'upload', 'generated')),
   expires_at TIMESTAMPTZ,
   expiry_message TEXT NOT NULL DEFAULT 'Ce lien a expiré.',
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -47,7 +55,11 @@ CREATE TABLE IF NOT EXISTS click_events (
   occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   referrer TEXT,
   country TEXT,
-  device TEXT
+  city TEXT,
+  device TEXT,
+  browser TEXT,
+  os TEXT,
+  qr_code_id UUID
 );
 
 CREATE INDEX IF NOT EXISTS click_events_short_link_idx ON click_events(short_link_id, occurred_at DESC);
@@ -60,8 +72,24 @@ CREATE TABLE IF NOT EXISTS qr_codes (
   short_link_id UUID REFERENCES short_links(id) ON DELETE SET NULL,
   foreground TEXT NOT NULL DEFAULT '#171717',
   background TEXT NOT NULL DEFAULT '#ffffff',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE page_items ADD COLUMN IF NOT EXISTS publish_at TIMESTAMPTZ;
+ALTER TABLE page_items ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS image_alt TEXT NOT NULL DEFAULT '';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS site_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_site TEXT NOT NULL DEFAULT '';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS twitter_large_image BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS embed_color TEXT NOT NULL DEFAULT '#d60106';
+ALTER TABLE short_links ADD COLUMN IF NOT EXISTS image_mode TEXT NOT NULL DEFAULT 'url';
+ALTER TABLE click_events ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE click_events ADD COLUMN IF NOT EXISTS browser TEXT;
+ALTER TABLE click_events ADD COLUMN IF NOT EXISTS os TEXT;
+ALTER TABLE click_events ADD COLUMN IF NOT EXISTS qr_code_id UUID;
+ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS click_events_qr_code_idx ON click_events(qr_code_id, occurred_at DESC);
 
 INSERT INTO site_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 UPDATE site_settings SET logo_path = '/assets/logo-ae2v.svg' WHERE logo_path IN ('/assets/favicon.ico', '/assets/avatar.svg');

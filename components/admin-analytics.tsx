@@ -1,38 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, RefreshCw } from "lucide-react";
 
 type Point = { label: string; value: number };
-type Analytics = { total: number; period: number; lastClickAt: string | null; timeline: Point[]; devices: Point[]; countries: Point[]; referrers: Point[] };
-const deviceNames: Record<string, string> = { mobile: 'Mobile', desktop: 'Ordinateur', tablet: 'Tablette', unknown: 'Inconnu' };
+type Analytics = { total: number; period: number; lastClickAt: string | null; timeline: Point[]; devices: Point[]; countries: Point[]; cities: Point[]; browsers: Point[]; systems: Point[]; referrers: Point[] };
+const deviceNames: Record<string, string> = { mobile: "Mobile", desktop: "Ordinateur", tablet: "Tablette", unknown: "Inconnu" };
+const iso = (date: Date) => date.toISOString().slice(0, 10);
+const shift = (days: number) => { const date = new Date(); date.setDate(date.getDate() - days); return iso(date); };
+const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 
-export function AdminAnalytics({ id, kind }: { id: string; kind: 'item' | 'short' }) {
-  const [days, setDays] = useState(30);
-  const [data, setData] = useState<Analytics | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refresh, setRefresh] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/admin/analytics?id=${id}&kind=${kind}&days=${days}`, { signal: controller.signal })
-      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error); return result; })
-      .then(result => { setData(result); setError(''); })
-      .catch(error => { if (!controller.signal.aborted) setError(error.message || 'Statistiques indisponibles'); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [id, kind, days, refresh]);
-  const max = Math.max(1, ...data?.timeline.map(point => point.value) ?? []);
-  return <section className="analytics-panel" aria-label="Statistiques de ce lien" aria-busy={loading}>
-    <header><h2>Statistiques</h2><div className="inline-actions"><select aria-label="Période des statistiques" value={days} onChange={e => { setLoading(true); setDays(Number(e.target.value)); }}><option value={7}>7 derniers jours</option><option value={30}>30 derniers jours</option><option value={90}>90 derniers jours</option></select><button className="secondary-button" type="button" aria-label="Actualiser les statistiques" onClick={() => { setLoading(true); setRefresh(refresh + 1); }}><RefreshCw size={16} /></button></div></header>
-    {loading ? <p role="status">Chargement des clics…</p> : error ? <p role="alert" className="form-error">{error}</p> : data && <>
-      <div className="metric-row"><div><span>Clics au total</span><strong>{data.total.toLocaleString('fr-FR')}</strong></div><div><span>Sur la période</span><strong>{data.period.toLocaleString('fr-FR')}</strong></div><div><span>Dernier clic</span><strong className="metric-date">{data.lastClickAt ? new Date(data.lastClickAt).toLocaleString('fr-FR') : 'Aucun'}</strong></div></div>
-      <div className="click-chart" role="img" aria-label={`${data.period} clics sur ${days} jours. Détail disponible dans le tableau ci-dessous.`}>{data.timeline.map(point => <div key={point.label} title={`${point.label} : ${point.value} clics`}><span style={{ height: `${point.value / max * 100}%` }} /></div>)}</div>
-      <div className="chart-dates"><span>{data.timeline[0]?.label}</span><span>{data.timeline.at(-1)?.label}</span></div>
-      {!data.period && <p className="empty-stats">Aucun clic enregistré sur cette période.</p>}
-      <div className="analytics-breakdowns">{[['Appareils', data.devices], ['Pays', data.countries], ['Provenance', data.referrers]].map(([title, values]) => <div key={String(title)}><h3>{String(title)}</h3>{(values as Point[]).length ? <dl>{(values as Point[]).slice(0, 8).map(point => <div key={point.label}><dt>{title === 'Appareils' ? deviceNames[point.label] ?? point.label : point.label}</dt><dd>{point.value}</dd></div>)}</dl> : <p>Pas encore de données.</p>}</div>)}</div>
-      <details className="analytics-table"><summary>Détail journalier</summary><table><thead><tr><th>Date (Paris)</th><th>Clics</th></tr></thead><tbody>{data.timeline.map(point => <tr key={point.label}><td>{point.label}</td><td>{point.value}</td></tr>)}</tbody></table></details>
-      <p className="stats-note">Clics enregistrés, pas visiteurs uniques. Les robots identifiés sont exclus des nouveaux événements. La provenance et le pays peuvent être inconnus.</p>
-    </>}
+export function AdminAnalytics({ id, kind }: { id: string; kind: "item" | "short" | "qr" }) {
+  const [range, setRange] = useState({ start: shift(29), end: iso(new Date()) });
+  const [draft, setDraft] = useState(range); const [open, setOpen] = useState(false); const [data, setData] = useState<Analytics | null>(null);
+  const [error, setError] = useState(""); const [loading, setLoading] = useState(true); const [refresh, setRefresh] = useState(0);
+  useEffect(() => { const controller = new AbortController(); fetch(`/api/admin/analytics?id=${id}&kind=${kind}&start=${range.start}&end=${range.end}`, { signal: controller.signal }).then(async (response) => { const result = await response.json(); if (!response.ok) throw new Error(result.error); return result; }).then((result) => { setData(result); setError(""); }).catch((error) => { if (!controller.signal.aborted) setError(error.message || "Statistiques indisponibles"); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [id, kind, range, refresh]);
+  const max = Math.max(1, ...data?.timeline.map((point) => point.value) ?? []);
+  const path = useMemo(() => data?.timeline.map((point, index, values) => `${index ? "L" : "M"}${values.length === 1 ? 50 : index / (values.length - 1) * 100},${95 - point.value / max * 85}`).join(" ") ?? "", [data, max]);
+  const setPreset = (days: number, offset = 0) => { const end = new Date(); end.setDate(end.getDate() - offset); const start = new Date(end); start.setDate(start.getDate() - days + 1); setDraft({ start: iso(start), end: iso(end) }); };
+  return <section className="analytics-panel" aria-label="Statistiques" aria-busy={loading}><header><div><h2>{kind === "qr" ? "Données de scan" : "Analytics"}</h2><p>Mesure les engagements humains, hors robots et préchargements.</p></div><div className="period-control"><button type="button" className="secondary-button" onClick={() => { setDraft(range); setOpen(!open); }}><CalendarDays />{format(range.start)} → {format(range.end)}</button>{open && <div className="period-popover"><div className="period-presets"><button type="button" onClick={() => setPreset(1)}>Aujourd’hui</button><button type="button" onClick={() => setPreset(1, 1)}>Hier</button><button type="button" onClick={() => setPreset(7)}>7 derniers jours</button><button type="button" onClick={() => setPreset(30)}>30 derniers jours</button><button type="button" onClick={() => setPreset(90)}>90 derniers jours</button></div><div className="period-custom"><label>Du<input type="date" value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label><label>Au<input type="date" value={draft.end} onChange={(event) => setDraft({ ...draft, end: event.target.value })} /></label><div><button type="button" className="secondary-button" onClick={() => setOpen(false)}>Annuler</button><button type="button" className="primary-button" onClick={() => { setLoading(true); setRange(draft); setOpen(false); }}>Appliquer</button></div></div></div>}<button className="icon-button" type="button" aria-label="Actualiser" onClick={() => { setLoading(true); setRefresh((value) => value + 1); }}><RefreshCw /></button></div></header>
+    {loading ? <div className="analytics-loading">Chargement des engagements…</div> : error ? <p role="alert" className="form-error">{error}</p> : data && <><div className="metric-row two"><div><span>Total des engagements</span><strong>{data.total.toLocaleString("fr-FR")}</strong></div><div><span>Engagements sur la période</span><strong>{data.period.toLocaleString("fr-FR")}</strong></div></div><section className="analytics-chart"><header><h3>Engagements dans le temps</h3><span>{data.period} au total</span></header><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${data.period} engagements du ${format(range.start)} au ${format(range.end)}`}><path className="chart-area" d={`${path} L100,100 L0,100 Z`} /><path className="chart-line" d={path} /></svg><div className="chart-dates"><span>{format(range.start)}</span><span>{format(range.end)}</span></div>{!data.period && <p className="empty-stats">Aucun engagement enregistré sur cette période.</p>}</section><div className="analytics-breakdowns"><Breakdown title="Villes" values={data.cities} /><Breakdown title="Appareils" values={data.devices} names={deviceNames} /><Breakdown title="Sites référents" values={data.referrers} /><Breakdown title="Navigateurs" values={data.browsers} /><Breakdown title="Systèmes" values={data.systems} /><Breakdown title="Pays" values={data.countries} /></div></>}
   </section>;
+}
+
+function Breakdown({ title, values, names }: { title: string; values: Point[]; names?: Record<string, string> }) {
+  const max = Math.max(1, ...values.map((point) => point.value));
+  return <section className="breakdown-card"><h3>{title}</h3>{values.length ? <ol>{values.slice(0, 8).map((point) => <li key={point.label}><div><span>{names?.[point.label] ?? point.label}</span><b>{point.value}</b></div><i><span style={{ width: `${point.value / max * 100}%` }} /></i></li>)}</ol> : <p>Pas encore de données.</p>}</section>;
 }

@@ -1,5 +1,5 @@
 import { Instagram, Facebook, Mail, Globe2 } from "lucide-react";
-import { conditionsMatch, isFeatured } from "@/lib/conditions";
+import { isFeatured, isPublished } from "@/lib/conditions";
 import { getPublicData } from "@/lib/db";
 import { PublicLink } from "@/components/public-link";
 import { ShareDialog } from "@/components/share-dialog";
@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const { settings, items } = await getPublicData();
   const now = new Date();
-  const visible = items.filter((item) => conditionsMatch(item.conditions, now)).sort((a, b) => Number(isFeatured(b, now)) - Number(isFeatured(a, now)) || a.sortOrder - b.sortOrder);
-  const discord = settings.discordConnected && settings.discordInvite ? await getDiscordStats(settings.discordInvite).catch(() => null) : null;
+  const visible = items.filter((item) => isPublished(item, now)).sort((a, b) => Number(isFeatured(b, now)) - Number(isFeatured(a, now)) || a.sortOrder - b.sortOrder);
+  const discordItem = visible.find((item) => item.kind === "discord");
+  const discord = discordItem ? await getDiscordStats(discordItem.url).catch(() => null) : null;
 
   return <main className="public-page">
     <section className="profile-card">

@@ -2,73 +2,68 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, BarChart3, Copy, ExternalLink, Link2, Plus, QrCode, Save, Search, Trash2 } from "lucide-react";
-import type { QrCodeRecord, ShortLink } from "@/lib/types";
+import type { QrCodeRecord, ShortLink, SocialMetadata } from "@/lib/types";
 import { AttachedQr, type AdminAct } from "./admin-qr";
 import { AdminAnalytics } from "./admin-analytics";
 import { normalizeUrl } from "@/lib/urls";
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://liens.ae2v.fr').replace(/\/$/, '');
-const localDate = (value: string | null) => value ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
-const date = (value: string) => new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-const blank = { destination: '', slug: '', title: '', description: '', imageUrl: '', expiresAt: '', expiryMessage: 'Ce lien a expiré.', enabled: true };
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://liens.ae2v.fr").replace(/\/$/, "");
+const localDate = (value: string | null) => value ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+const date = (value: string) => new Date(value).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+type ShortFormState = Pick<ShortLink, "destination" | "slug" | "title" | "description" | "imageAlt" | "siteName" | "twitterSite" | "twitterLargeImage" | "embedColor" | "imageMode" | "expiryMessage" | "enabled"> & { imageUrl: string; expiresAt: string };
+const blank: ShortFormState = { destination: "", slug: "", title: "", description: "", imageUrl: "", imageAlt: "", siteName: "", twitterSite: "", twitterLargeImage: true, embedColor: "#d60106", imageMode: "url", expiresAt: "", expiryMessage: "Ce lien a expiré.", enabled: true };
 
 export function ShortLinksManager({ links, records, act }: { links: ShortLink[]; records: QrCodeRecord[]; act: AdminAct }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [sort, setSort] = useState('created');
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
-  const link = links.find(link => link.id === selected);
-  if (creating) return <><button className="back-button" onClick={() => setCreating(false)}><ArrowLeft />Tous les liens</button><header className="admin-section-header"><h1>Créer un lien</h1></header><ShortForm act={act} onSaved={() => setCreating(false)} /></>;
-  if (link) return <><button className="back-button" onClick={() => setSelected(null)}><ArrowLeft />Tous les liens</button><header className="admin-section-header"><div><h1>{link.title}</h1><a href={`${siteUrl}/${link.slug}`} target="_blank" rel="noreferrer">{siteUrl}/{link.slug} <ExternalLink size={14} /></a></div><CopyLink url={`${siteUrl}/${link.slug}`} /></header><div className="link-detail-grid"><ShortForm key={link.updatedAt} link={link} records={records} act={act} onSaved={() => {}} /><AttachedQr name={link.title} target={`${siteUrl}/${link.slug}`} shortLinkId={link.id} records={records} act={act} /></div><AdminAnalytics kind="short" id={link.id} /></>;
-  const expired = (link: ShortLink) => Boolean(link.expiresAt && new Date(link.expiresAt).getTime() <= now);
-  const visible = links.filter(link => `${link.title} ${link.slug} ${link.destination}`.toLowerCase().includes(search.toLowerCase()) &&
-    (filter === 'all' || (filter === 'active' ? link.enabled && !expired(link) : filter === 'expired' ? expired(link) : !link.enabled)))
-    .sort((a, b) => sort === 'clicks' ? b.clicks - a.clicks : sort === 'updated' ? b.updatedAt.localeCompare(a.updatedAt) : b.createdAt.localeCompare(a.createdAt));
-  return <>
-    <header className="admin-section-header"><div><h1>Liens courts</h1><p>{links.length} adresses à partager.</p></div><button className="primary-button" onClick={() => setCreating(true)}><Plus />Créer un lien</button></header>
-    <div className="links-toolbar"><label className="search-field"><Search size={18} /><input aria-label="Rechercher un lien" placeholder="Rechercher parmi les liens" value={search} onChange={e => setSearch(e.target.value)} /></label><select aria-label="Filtrer les liens" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">Tous les liens</option><option value="active">Actifs</option><option value="expired">Expirés</option><option value="disabled">Désactivés</option></select><select aria-label="Trier les liens" value={sort} onChange={e => setSort(e.target.value)}><option value="created">Création récente</option><option value="updated">Modification récente</option><option value="clicks">Les plus cliqués</option></select></div>
-    <div className="managed-links">{visible.map(link => <article key={link.id}>
-      <div className="managed-link-heading"><Link2 size={22} /><button className="title-button" onClick={() => setSelected(link.id)}>{link.title}</button><span className={`badge ${!link.enabled || expired(link) ? '' : 'green'}`}>{!link.enabled ? 'Désactivé' : expired(link) ? 'Expiré' : 'Actif'}</span></div>
-      <div className="inline-actions"><a className="short-url" href={`${siteUrl}/${link.slug}`} target="_blank" rel="noreferrer">{siteUrl.replace(/^https?:\/\//, '')}/{link.slug}</a><CopyLink url={`${siteUrl}/${link.slug}`} /></div>
-      <a className="destination-link" href={link.destination} target="_blank" rel="noreferrer">↳ {link.destination}</a>
-      <div className="managed-link-footer"><span><BarChart3 size={16} />{link.clicks} clics</span><span>Créé le {date(link.createdAt)}</span><span>Modifié le {date(link.updatedAt)}</span><div className="inline-actions"><button className="secondary-button" onClick={() => setSelected(link.id)}>Modifier / stats</button><button className="secondary-button" onClick={() => setSelected(link.id)}><QrCode />{records.some(qr => qr.shortLinkId === link.id) ? 'Voir le QR code' : 'Ajouter un QR code'}</button></div></div>
-    </article>)}</div>
-    {!visible.length && <p className="empty-stats">{links.length ? 'Aucun lien ne correspond à cette recherche.' : 'Crée ton premier lien court.'}</p>}
-  </>;
+  const [selected, setSelected] = useState<string | "new" | null>(null);
+  const [now] = useState(() => Date.now());
+  const [search, setSearch] = useState(""); const [filter, setFilter] = useState("all"); const [sort, setSort] = useState("created");
+  const link = links.find((entry) => entry.id === selected);
+  if (selected === "new") return <><button className="back-button" onClick={() => setSelected(null)}><ArrowLeft />Tous les liens</button><header className="admin-section-header"><div><h1>Créer un lien</h1><p>La destination sera analysée pour préparer les aperçus sociaux.</p></div></header><ShortForm act={act} onSaved={() => setSelected(null)} /></>;
+  if (link) return <><button className="back-button" onClick={() => setSelected(null)}><ArrowLeft />Tous les liens</button><header className="admin-section-header"><div><h1>{link.title}</h1><a href={`${siteUrl}/${link.slug}`} target="_blank" rel="noreferrer">{siteUrl}/{link.slug} <ExternalLink size={14} /></a></div><CopyLink url={`${siteUrl}/${link.slug}`} /></header><div className="detail-layout"><ShortForm key={link.updatedAt} link={link} records={records} act={act} onSaved={() => {}} /><AttachedQr name={link.title} target={`${siteUrl}/${link.slug}`} shortLinkId={link.id} records={records} act={act} /></div><AdminAnalytics kind="short" id={link.id} /></>;
+  const expired = (entry: ShortLink) => Boolean(entry.expiresAt && new Date(entry.expiresAt).getTime() <= now);
+  const visible = links.filter((entry) => `${entry.title} ${entry.slug} ${entry.destination}`.toLowerCase().includes(search.toLowerCase()) && (filter === "all" || (filter === "active" ? entry.enabled && !expired(entry) : filter === "expired" ? expired(entry) : !entry.enabled))).sort((a, b) => sort === "clicks" ? b.clicks - a.clicks : sort === "updated" ? b.updatedAt.localeCompare(a.updatedAt) : b.createdAt.localeCompare(a.createdAt));
+  return <><header className="admin-section-header"><div><h1>Liens courts</h1><p>Redirections, aperçus sociaux et performances.</p></div><button className="primary-button" onClick={() => setSelected("new")}><Plus />Créer un lien</button></header><div className="links-toolbar"><label className="search-field"><Search /><input aria-label="Rechercher un lien" placeholder="Rechercher parmi les liens" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select aria-label="Filtrer" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="active">Actifs</option><option value="expired">Expirés</option><option value="disabled">Désactivés</option></select><select aria-label="Trier" value={sort} onChange={(event) => setSort(event.target.value)}><option value="created">Création récente</option><option value="updated">Modification récente</option><option value="clicks">Plus engagés</option></select></div><div className="resource-list">{visible.map((entry) => <article key={entry.id}><span className="resource-icon"><Link2 /></span><button className="resource-copy" onClick={() => setSelected(entry.id)}><strong>{entry.title}</strong><span className="resource-short">{siteUrl.replace(/^https?:\/\//, "")}/{entry.slug}</span><span>{entry.destination}</span><small>{entry.clicks} engagements · créé le {date(entry.createdAt)} · modifié le {date(entry.updatedAt)}</small></button><span className={`badge ${entry.enabled && !expired(entry) ? "green" : ""}`}>{!entry.enabled ? "Désactivé" : expired(entry) ? "Expiré" : "Actif"}</span><div className="resource-actions"><CopyLink url={`${siteUrl}/${entry.slug}`} /><button aria-label="Modifier et voir les statistiques" onClick={() => setSelected(entry.id)}><BarChart3 /></button><button aria-label="QR code" onClick={() => setSelected(entry.id)}><QrCode /></button></div></article>)}</div></>;
 }
 
 function CopyLink({ url }: { url: string }) {
-  const [status, setStatus] = useState('Copier');
-  return <button className="copy-button" aria-label={status === 'Copier' ? `Copier ${url}` : status} onClick={async () => { try { await navigator.clipboard.writeText(url); setStatus('Copié'); } catch { setStatus('Copie impossible'); } window.setTimeout(() => setStatus('Copier'), 2000); }}><Copy size={15} /><span>{status}</span></button>;
+  const [status, setStatus] = useState("Copier");
+  return <button className="copy-button" aria-label={`Copier ${url}`} onClick={async () => { try { await navigator.clipboard.writeText(url); setStatus("Copié"); } catch { setStatus("Échec"); } window.setTimeout(() => setStatus("Copier"), 1600); }}><Copy /><span>{status}</span></button>;
 }
 
 function ShortForm({ link, records = [], act, onSaved }: { link?: ShortLink; records?: QrCodeRecord[]; act: AdminAct; onSaved: () => void }) {
-  const [form, setForm] = useState(link ? { ...link, imageUrl: link.imageUrl ?? '', expiresAt: localDate(link.expiresAt) } : blank);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const lockedSlug = Boolean(link && records.some(qr => qr.shortLinkId === link.id));
-  return <form className="create-panel" onSubmit={async e => {
-    e.preventDefault(); setBusy(true); setError('');
+  const [form, setForm] = useState<ShortFormState>(link ? { ...link, imageUrl: link.imageUrl ?? "", expiresAt: localDate(link.expiresAt) } : blank);
+  const [metaState, setMetaState] = useState<"idle" | "loading" | "ready" | "empty" | "error">(link ? "ready" : "idle");
+  const [editingMeta, setEditingMeta] = useState(!link); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const lockedSlug = Boolean(link && records.some((qr) => qr.shortLinkId === link.id));
+  async function retrieve() {
+    let destination = ""; try { destination = normalizeUrl(form.destination); } catch { return; }
+    setMetaState("loading");
     try {
-      if (link && form.slug !== link.slug && !confirm('Changer le slug rendra les anciennes adresses inaccessibles. Continuer ?')) return;
-      await act({ ...form, action: link ? 'updateShort' : 'createShort', id: link?.id, destination: normalizeUrl(form.destination), expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null }, link ? 'Lien enregistré' : 'Lien créé');
-      onSaved();
-    } catch (error) { setError(error instanceof Error ? error.message : 'Enregistrement impossible'); }
-    finally { setBusy(false); }
-  }}>
-    <h2>{link ? 'Détails du lien' : 'Nouveau lien'}</h2>
-    <label>Destination<input required placeholder="ae2v.fr" value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })} /></label>
-    <label>Adresse courte<span className="slug-input"><b>liens.ae2v.fr/</b><input disabled={lockedSlug} pattern="[A-Za-z0-9_-]{2,48}" placeholder="4 caractères aléatoires" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} /></span></label>
-    {lockedSlug && <p className="stats-note">Le slug est conservé pour que tes QR codes déjà partagés continuent à fonctionner. La destination reste modifiable.</p>}
-    <label>Titre de l’aperçu social<input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
-    <label>Description<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
-    <label>Image d’aperçu (facultatif)<input placeholder="exemple.fr/image.jpg" value={form.imageUrl} onChange={e => setForm({ ...form, imageUrl: e.target.value })} /></label>
-    <div className="form-grid two"><label>Expiration (facultatif)<input type="datetime-local" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} /></label><label>Message à expiration<input value={form.expiryMessage} onChange={e => setForm({ ...form, expiryMessage: e.target.value })} /></label></div>
-    {link && <label className="toggle-label"><input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} /><span />Lien actif</label>}
-    {error && <p role="alert" className="form-error">{error}</p>}
-    <div className="form-actions">{link && <button type="button" className="danger-button" disabled={busy} onClick={async () => { if (!confirm('Supprimer ce lien et ses statistiques ?')) return; try { await act({ action: 'deleteShort', id: link.id }, 'Lien supprimé'); onSaved(); } catch {} }}><Trash2 />Supprimer</button>}<button className="primary-button" disabled={busy}><Save />{busy ? 'Enregistrement…' : link ? 'Enregistrer' : 'Créer le lien'}</button></div>
+      const response = await fetch("/api/admin/metadata", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: destination }) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error);
+      const metadata = result.metadata as SocialMetadata;
+      const available = Boolean(metadata.title || metadata.description || metadata.imageUrl);
+      setForm((current) => ({ ...current, destination, title: metadata.title || current.title, description: metadata.description || current.description, imageUrl: metadata.imageUrl || current.imageUrl, imageAlt: metadata.imageAlt || current.imageAlt, siteName: metadata.siteName || current.siteName, twitterSite: metadata.twitterSite || current.twitterSite, twitterLargeImage: metadata.twitterLargeImage, embedColor: metadata.embedColor || current.embedColor }));
+      setMetaState(available ? "ready" : "empty");
+    } catch { setMetaState("error"); }
+  }
+  useEffect(() => { if (link || form.destination.trim().length < 4) return; const timer = window.setTimeout(() => void retrieve(), 700); return () => window.clearTimeout(timer); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination, link]);
+  async function upload(file?: File) {
+    if (!file) return; if (file.size > 2_000_000 || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) { setError("Choisis une image PNG, JPEG ou WebP de moins de 2 Mo."); return; }
+    const reader = new FileReader(); reader.onload = () => setForm((current) => ({ ...current, imageMode: "upload", imageUrl: String(reader.result) })); reader.readAsDataURL(file);
+  }
+  const publicImage = form.imageMode === "generated" && link ? `/api/share-image/${link.id}` : form.imageMode === "upload" && link ? `/api/meta-image/${link.id}` : form.imageUrl;
+  return <form className="detail-card edit-form short-form" onSubmit={async (event) => { event.preventDefault(); setBusy(true); setError(""); try { await act({ ...form, action: link ? "updateShort" : "createShort", id: link?.id, destination: normalizeUrl(form.destination), expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null }, link ? "Lien enregistré" : "Lien créé"); onSaved(); } catch (error) { setError(error instanceof Error ? error.message : "Enregistrement impossible"); } finally { setBusy(false); } }}>
+    <section className="form-section"><h2>Redirection</h2><label>Destination<div className="input-action"><input required placeholder="ae2v.fr" value={form.destination} onChange={(event) => setForm({ ...form, destination: event.target.value })} /><button type="button" className="secondary-button" onClick={retrieve}>Analyser</button></div></label><label>Adresse courte<span className="slug-input"><b>liens.ae2v.fr/</b><input disabled={lockedSlug} pattern="[A-Za-z0-9_-]{2,48}" placeholder="4 caractères aléatoires" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} /></span></label>{lockedSlug && <p className="stats-note">Le slug reste verrouillé pour préserver les QR codes déjà imprimés.</p>}<div className="form-grid two"><label>Expiration (facultatif)<input type="datetime-local" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} /></label><label>Message à expiration<input value={form.expiryMessage} onChange={(event) => setForm({ ...form, expiryMessage: event.target.value })} /></label></div>{link && <label className="toggle-label"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /><span />Lien actif</label>}</section>
+    <section className="form-section social-section"><header><div><h2>Intégration sociale</h2><p>{metaState === "loading" ? "Lecture de la page d’origine…" : metaState === "empty" || metaState === "error" ? "Aucune intégration exploitable trouvée sur la destination." : "Aperçu généré à partir des métadonnées du lien."}</p></div><button type="button" className="secondary-button" onClick={() => setEditingMeta(!editingMeta)}>{editingMeta ? "Masquer l’édition" : "Modifier l’intégration"}</button></header><SocialPreview metadata={{ title: form.title, description: form.description, imageUrl: publicImage, imageAlt: form.imageAlt, siteName: form.siteName, twitterSite: form.twitterSite, twitterLargeImage: form.twitterLargeImage, embedColor: form.embedColor }} slug={form.slug || "exemple"} />
+      {editingMeta && <div className="meta-editor"><div className="form-grid two"><label>Titre<input maxLength={95} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label>Nom du site<input value={form.siteName} onChange={(event) => setForm({ ...form, siteName: event.target.value })} /></label></div><label>Description<textarea rows={3} maxLength={240} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><div className="image-modes" role="group" aria-label="Source de l’image"><button type="button" className={form.imageMode === "url" ? "active" : ""} onClick={() => setForm({ ...form, imageMode: "url" })}>Lien</button><label className={form.imageMode === "upload" ? "active" : ""}>Importer<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => upload(event.target.files?.[0])} /></label><button type="button" className={form.imageMode === "generated" ? "active" : ""} onClick={() => setForm({ ...form, imageMode: "generated" })}>Générée par AE2V</button></div>{form.imageMode === "url" && <label>Adresse de l’image<input placeholder="https://…/image.jpg" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label>}<div className="form-grid two"><label>Texte alternatif<input value={form.imageAlt} onChange={(event) => setForm({ ...form, imageAlt: event.target.value })} /></label><label>Compte X de l’éditeur<input placeholder="@AE2V_BDE" value={form.twitterSite} onChange={(event) => setForm({ ...form, twitterSite: event.target.value })} /></label></div><div className="toggle-row"><label className="toggle-label"><input type="checkbox" checked={form.twitterLargeImage} onChange={(event) => setForm({ ...form, twitterLargeImage: event.target.checked })} /><span />Grande image sur X</label><label>Couleur Discord / Slack<input type="color" value={form.embedColor} onChange={(event) => setForm({ ...form, embedColor: event.target.value })} /></label></div></div>}
+    </section>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions">{link ? <button type="button" className="danger-button" onClick={() => confirm("Supprimer ce lien ?") && act({ action: "deleteShort", id: link.id }, "Lien supprimé").then(onSaved)}><Trash2 />Supprimer</button> : <span />}<button className="primary-button" disabled={busy}><Save />{busy ? "Enregistrement…" : "Enregistrer"}</button></div>
   </form>;
+}
+
+function SocialPreview({ metadata, slug }: { metadata: SocialMetadata; slug: string }) {
+  const [platform, setPlatform] = useState<"facebook" | "x" | "linkedin" | "discord">("facebook");
+  const hostname = `LIENS.AE2V.FR/${slug}`.toUpperCase();
+  return <div className="social-preview"><div className="preview-tabs" role="tablist">{[["facebook", "Facebook"], ["x", "X / Twitter"], ["linkedin", "LinkedIn"], ["discord", "Discord / Slack"]].map(([value, label]) => <button type="button" role="tab" aria-selected={platform === value} className={platform === value ? "active" : ""} key={value} onClick={() => setPlatform(value as typeof platform)}>{label}</button>)}</div>{metadata.title || metadata.description || metadata.imageUrl ? <div className={`preview-card ${platform}`} style={platform === "discord" ? { borderLeftColor: metadata.embedColor } : undefined}>{metadata.imageUrl ? <div className="preview-image" style={{ backgroundImage: `url(${metadata.imageUrl})` }} role="img" aria-label={metadata.imageAlt || "Image de partage"} /> : <div className="preview-image empty">Aucune image</div>}<div className="preview-copy"><small>{metadata.siteName || hostname}</small><strong>{metadata.title || "Titre du lien"}</strong><p>{metadata.description || "Aucune description."}</p></div></div> : <div className="preview-empty"><strong>Aucune intégration disponible</strong><span>Ajoute un titre, une description ou une image pour créer un aperçu.</span></div>}</div>;
 }

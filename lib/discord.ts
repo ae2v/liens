@@ -3,7 +3,10 @@ import { normalizeUrl } from "./urls";
 export type DiscordStats = { name: string; members: number; online: number; invite: string; checkedAt: string };
 
 export function discordInvite(input: string) {
-  const url = new URL(normalizeUrl(input, false));
+  const raw = input.trim();
+  if (/^[\w-]{2,64}$/.test(raw)) return { code: raw, url: `https://discord.gg/${raw}` };
+  const prepared = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const url = new URL(normalizeUrl(prepared, false));
   const match = url.hostname === "discord.gg" ? url.pathname.match(/^\/([\w-]+)\/?$/) :
     ["discord.com", "www.discord.com"].includes(url.hostname) ? url.pathname.match(/^\/invite\/([\w-]+)\/?$/) : null;
   if (!match) throw new Error("Utilise une invitation discord.gg/… ou discord.com/invite/…");

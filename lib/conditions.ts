@@ -28,3 +28,10 @@ export function isFeatured(item: PageItem, now = new Date()) {
   if (item.featuredEndAt && now > new Date(item.featuredEndAt)) return false;
   return true;
 }
+
+export function isPublished(item: PageItem, now = new Date()) {
+  if (!item.enabled) return false;
+  if (item.publishAt && now < new Date(item.publishAt)) return false;
+  if (item.expiresAt && now > new Date(item.expiresAt)) return false;
+  return true;
+}
