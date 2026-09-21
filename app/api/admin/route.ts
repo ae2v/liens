@@ -104,13 +104,18 @@ export async function POST(request: Request) {
           if (!rows.length) throw new Error("Lien court introuvable.");
           body.targetUrl = `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/${rows[0].slug}`;
         }
-        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background) VALUES (${id}, ${body.name || "QR sans titre"}, ${body.targetUrl}, ${body.shortLinkId || null}, ${body.foreground || "#171717"}, ${body.background || "#ffffff"})`;
+        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background) VALUES (${id}, ${String(body.name || "").trim()}, ${body.targetUrl}, ${body.shortLinkId || null}, ${body.foreground || "#171717"}, ${body.background || "#ffffff"})`;
         return NextResponse.json({ ok: true, qrCode: { id } });
       }
       case "updateQr": {
-        const target = normalizeUrl(String(body.targetUrl));
+        let target = normalizeUrl(String(body.targetUrl));
         if (!/^#[0-9a-f]{6}$/i.test(body.foreground) || !/^#[0-9a-f]{6}$/i.test(body.background)) throw new Error("Couleur invalide.");
-        await sql`UPDATE qr_codes SET name=${String(body.name || "QR sans titre")}, target_url=${target}, foreground=${body.foreground}, background=${body.background}, updated_at=NOW() WHERE id=${body.id}`;
+        if (body.shortLinkId) {
+          const rows = await sql`SELECT slug FROM short_links WHERE id=${body.shortLinkId}`;
+          if (!rows.length) throw new Error("Lien court introuvable.");
+          target = `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/${rows[0].slug}`;
+        }
+        await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       default:

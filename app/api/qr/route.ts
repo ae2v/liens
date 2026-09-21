@@ -6,6 +6,24 @@ import sharp from "sharp";
 
 type Rect = { x: number; y: number; width: number; height: number };
 
+function extractLastTopLevelGroup(source: string) {
+  const groups: string[] = [];
+  const tag = /<\/?g(?:\s[^>]*)?>/g;
+  let depth = 0;
+  let start = -1;
+  for (const match of source.matchAll(tag)) {
+    const closing = match[0].startsWith("</");
+    if (!closing) {
+      if (depth === 0) start = match.index;
+      depth += 1;
+    } else {
+      depth -= 1;
+      if (depth === 0 && start >= 0 && match.index !== undefined) groups.push(source.slice(start, match.index + match[0].length));
+    }
+  }
+  return groups.at(-1) ?? "";
+}
+
 function mergedRects(matrix: Uint8Array, size: number, cutout: { x: number; y: number; width: number; height: number }) {
   const complete: Rect[] = [];
   let active = new Map<string, Rect>();
@@ -51,7 +69,7 @@ async function buildQrSvg(data: string, dark: string, light: string, moduleSize:
   }).join("");
 
   const source = await readFile(join(process.cwd(), "public", "assets", "logo-ae2v.svg"), "utf8");
-  const logoBody = source.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+  const lionBody = extractLastTopLevelGroup(source).replaceAll('class="cls-1"', 'fill="#d60106"');
   const logoWidth = cutout.width * moduleSize;
   const logoHeight = cutout.height * moduleSize;
   const logoX = (quiet + cutout.x) * moduleSize;
@@ -59,7 +77,7 @@ async function buildQrSvg(data: string, dark: string, light: string, moduleSize:
   const scale = Math.min(logoWidth / 350, logoHeight / 272.35) * 0.9;
   const tx = logoX + (logoWidth - 350 * scale) / 2;
   const ty = logoY + (logoHeight - 272.35 * scale) / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" viewBox="0 0 ${pixelSize} ${pixelSize}"><rect width="100%" height="100%" fill="${light}"/><path d="${path}" fill="${dark}" shape-rendering="crispEdges"/><g transform="translate(${tx} ${ty}) scale(${scale}) translate(-650 0)">${logoBody}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelSize}" height="${pixelSize}" viewBox="0 0 ${pixelSize} ${pixelSize}"><rect width="100%" height="100%" fill="${light}"/><path d="${path}" fill="${dark}" shape-rendering="crispEdges"/><g transform="translate(${tx} ${ty}) scale(${scale}) translate(-650 0)">${lionBody}</g></svg>`;
 }
 
 export async function GET(request: NextRequest) {

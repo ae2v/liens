@@ -164,6 +164,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .toggle-row { display: flex; gap: 26px; }
 
 .list-heading { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 14px; }
+.list-heading .primary-button { margin-left: auto; }
 .list-heading h2 { margin: 0 0 3px; font-size: 1.15rem; }
 .list-heading span { color: var(--muted); font-size: .75rem; }
 .item-list, .short-list { display: grid; gap: 9px; }
@@ -322,6 +323,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow
 .preview-copy strong { font-size: .96rem; }
 .preview-copy p { margin: 0; overflow: hidden; color: #606268; font-size: .74rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .preview-card.x { border-radius: 14px; }
+.preview-card.x-summary { display: grid; grid-template-columns: minmax(0,1fr) 128px; min-height: 126px; }
+.preview-card.x-summary .preview-copy { grid-column: 1; grid-row: 1; align-content: center; }
+.preview-card.x-summary .preview-image { grid-column: 2; grid-row: 1; height: 100%; aspect-ratio: auto; border-left: 1px solid #d9dade; }
 .preview-card.linkedin .preview-copy { background: #f3f6f8; }
 .preview-card.discord { display: grid; grid-template-columns: 4px minmax(0,1fr); border-left: 4px solid var(--red); border-radius: 4px; background: #2b2d31; }
 .preview-card.discord .preview-image { grid-column: 2; margin: 12px 12px 0; border-radius: 5px; }
