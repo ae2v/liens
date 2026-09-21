@@ -8,6 +8,17 @@ import { discordInvite, getDiscordStats } from "@/lib/discord";
 const reserved = new Set(["admin", "api", "assets", "_next", "opengraph-image"]);
 const slugOk = (value: string) => /^[A-Za-z0-9_-]{2,48}$/.test(value) && !reserved.has(value.toLowerCase());
 const randomSlug = () => randomBytes(3).toString("base64url").slice(0, 4);
+const hexColor = (value: unknown) => /^#[0-9a-f]{6}$/i.test(String(value ?? ""));
+const backgroundColor = (value: unknown) => String(value) === "transparent" || hexColor(value);
+
+async function uniqueTrackingKey(sql: ReturnType<typeof sqlClient>) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const key = randomSlug();
+    const rows = await sql`SELECT id FROM qr_codes WHERE tracking_key=${key} LIMIT 1`;
+    if (!rows.length) return key;
+  }
+  throw new Error("Impossible de générer une adresse de suivi.");
+}
 
 export async function GET() {
   if (!(await isAdmin())) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -97,25 +108,23 @@ export async function POST(request: Request) {
         break;
       case "createQr": {
         const id = randomUUID();
-        body.targetUrl = normalizeUrl(String(body.targetUrl));
-        if (!/^#[0-9a-f]{6}$/i.test(body.foreground || '#171717') || !/^#[0-9a-f]{6}$/i.test(body.background || '#ffffff')) throw new Error("Couleur invalide.");
-        if (body.shortLinkId) {
-          const rows = await sql`SELECT slug FROM short_links WHERE id=${body.shortLinkId}`;
-          if (!rows.length) throw new Error("Lien court introuvable.");
-          body.targetUrl = `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/${rows[0].slug}`;
-        }
-        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background) VALUES (${id}, ${String(body.name || "").trim()}, ${body.targetUrl}, ${body.shortLinkId || null}, ${body.foreground || "#171717"}, ${body.background || "#ffffff"})`;
+        const target = normalizeUrl(String(body.targetUrl));
+        const foreground = body.foreground || "#171717";
+        const background = body.background || "#ffffff";
+        if (!hexColor(foreground) || !backgroundColor(background)) throw new Error("Couleur invalide.");
+        const trackingEnabled = Boolean(body.trackingEnabled) && !body.shortLinkId;
+        const trackingKey = trackingEnabled ? await uniqueTrackingKey(sql) : null;
+        await sql`INSERT INTO qr_codes (id, name, target_url, short_link_id, foreground, background, tracking_enabled, tracking_key) VALUES (${id}, ${String(body.name || "").trim()}, ${target}, ${body.shortLinkId || null}, ${foreground}, ${background}, ${trackingEnabled}, ${trackingKey})`;
         return NextResponse.json({ ok: true, qrCode: { id } });
       }
       case "updateQr": {
-        let target = normalizeUrl(String(body.targetUrl));
-        if (!/^#[0-9a-f]{6}$/i.test(body.foreground) || !/^#[0-9a-f]{6}$/i.test(body.background)) throw new Error("Couleur invalide.");
-        if (body.shortLinkId) {
-          const rows = await sql`SELECT slug FROM short_links WHERE id=${body.shortLinkId}`;
-          if (!rows.length) throw new Error("Lien court introuvable.");
-          target = `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://liens.ae2v.fr').replace(/\/$/, '')}/${rows[0].slug}`;
-        }
-        await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, updated_at=NOW() WHERE id=${body.id}`;
+        const target = normalizeUrl(String(body.targetUrl));
+        if (!hexColor(body.foreground) || !backgroundColor(body.background)) throw new Error("Couleur invalide.");
+        const trackingEnabled = Boolean(body.trackingEnabled) && !body.shortLinkId;
+        const current = await sql`SELECT tracking_key FROM qr_codes WHERE id=${body.id}`;
+        if (!current.length) throw new Error("QR code introuvable.");
+        const trackingKey = trackingEnabled && !current[0].tracking_key ? await uniqueTrackingKey(sql) : current[0].tracking_key;
+        await sql`UPDATE qr_codes SET name=${String(body.name || "").trim()}, target_url=${target}, short_link_id=${body.shortLinkId || null}, foreground=${body.foreground}, background=${body.background}, tracking_enabled=${trackingEnabled}, tracking_key=${trackingKey}, updated_at=NOW() WHERE id=${body.id}`;
         break;
       }
       default:
