@@ -8,6 +8,26 @@ function sqlClient() {
   return neon(url);
 }
 
+let qrSchemaPromise: Promise<void> | null = null;
+
+export function ensureQrSchema() {
+  if (!qrSchemaPromise) {
+    qrSchemaPromise = (async () => {
+      const sql = sqlClient();
+      await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_enabled BOOLEAN`;
+      await sql`ALTER TABLE qr_codes ADD COLUMN IF NOT EXISTS tracking_key TEXT`;
+      await sql`UPDATE qr_codes SET tracking_enabled = TRUE WHERE tracking_enabled IS NULL`;
+      await sql`ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET DEFAULT FALSE`;
+      await sql`ALTER TABLE qr_codes ALTER COLUMN tracking_enabled SET NOT NULL`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_tracking_key_idx ON qr_codes(tracking_key) WHERE tracking_key IS NOT NULL`;
+    })().catch((error) => {
+      qrSchemaPromise = null;
+      throw error;
+    });
+  }
+  return qrSchemaPromise;
+}
+
 function mapSettings(row: Record<string, unknown>): SiteSettings {
   return {
     id: Number(row.id),
@@ -82,6 +102,7 @@ export async function getPublicData() {
 }
 
 export async function getAdminData() {
+  await ensureQrSchema();
   const sql = sqlClient();
   await sql`DELETE FROM click_events WHERE qr_code_id IN (SELECT id FROM qr_codes WHERE short_link_id IS NOT NULL)`;
   await sql`DELETE FROM qr_codes WHERE short_link_id IS NOT NULL`;
@@ -132,6 +153,7 @@ export async function recordItemClick(itemId: string, request: Request) {
 }
 
 export async function getQrCode(identifier: string) {
+  await ensureQrSchema();
   const sql = sqlClient();
   const rows = await sql`SELECT * FROM qr_codes WHERE id::text=${identifier} OR tracking_key=${identifier} LIMIT 1`;
   return rows[0] ?? null;
