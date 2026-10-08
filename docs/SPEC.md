@@ -2,12 +2,12 @@
 
 ## Résultat attendu
 
-Le domaine `liens.ae2v.fr` réunit trois usages dans une seule application : une page publique de liens, des redirections courtes mesurables et un générateur de QR codes. L’administration est protégée par un mot de passe temporaire, avant migration vers `auth.ae2v.fr`.
+Le domaine `liens.ae2v.fr` réunit trois usages dans une seule application : une page publique de liens, des redirections courtes mesurables et un générateur de QR codes. L’administration utilise le SSO Google Workspace AE2V.
 
 ## Décisions
 
 - **Architecture :** Next.js App Router sur le projet Vercel existant, avec Postgres serverless Neon.
-- **Administration :** session HTTP-only signée côté serveur. Le mot de passe n’est jamais exposé au navigateur ni stocké dans Git.
+- **Administration :** session HTTP-only chiffrée côté serveur après un flux OIDC avec PKCE. Seuls les comptes ayant le rôle `admin` pour Liens peuvent entrer.
 - **Données :** paramètres de page, éléments, liens courts, événements de clic et QR enregistrés dans Postgres.
 - **Conditions :** plusieurs règles combinées avec `ET` ou `OU` (début, fin, année, jours de semaine).
 - **Réseaux :** icônes Lucide, bibliothèque libre et cohérente. Discord utilise l’API publique d’invitation pour le nombre de membres en ligne.
@@ -47,7 +47,7 @@ Le domaine `liens.ae2v.fr` réunit trois usages dans une seule application : une
 
 ## Limites assumées de cette version
 
-- Le mot de passe temporaire sera remplacé par Google Workspace via `auth.ae2v.fr`.
+- L’authentification Google Workspace est fournie par `https://sso.ae2v.fr` ; le rôle est géré par application dans ce service.
 - Les statistiques conservent uniquement le moment, le référent, le pays Vercel et une catégorie d’appareil ; aucune empreinte personnelle n’est créée.
 - Le compteur Discord dépend de l’activation du widget de serveur ou des données publiques de l’invitation.
 

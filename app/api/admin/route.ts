@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
+import { adminOriginAllowed } from "@/lib/sso";
 import { ensureQrSchema, ensureSharingSchema, getAdminData, sqlClient } from "@/lib/db";
 import { normalizeUrl } from "@/lib/urls";
 import { discordInvite, getDiscordStats } from "@/lib/discord";
@@ -27,6 +28,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!(await isAdmin())) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!adminOriginAllowed(request)) return NextResponse.json({ error: "Origine non autorisée" }, { status: 403 });
   const body = await request.json();
   const sql = sqlClient();
 
